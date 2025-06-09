@@ -1,18 +1,10 @@
 package lib
 
 import (
-	"bytes"
-	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
-
-	"vrc-moments/pkg/exif"
-	"vrc-moments/pkg/vrcx"
 )
 
 func Map[T any](s []T, f func(T) T) {
@@ -42,6 +34,14 @@ func DigitCount(i int) int {
 		count++
 	}
 	return count
+}
+
+func FileExists(path string) bool {
+	_, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+	return true
 }
 
 // ExpandPatterns walks or globs each pattern and returns all files.
@@ -99,41 +99,4 @@ func ExpandPatterns(patterns ...string) ([]string, error) {
 	}
 
 	return files, nil
-}
-
-func GetVRCXDataFromFile(path string) (vrcx.Screenshot, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer f.Close()
-
-	return getVRCXData[vrcx.Screenshot](f)
-}
-
-func GetVRCXData(r io.ReadSeeker) (vrcx.Screenshot, error) {
-	return getVRCXData[vrcx.Screenshot](r)
-}
-
-func getVRCXData[T vrcx.Screenshot](r io.ReadSeeker) (T, error) {
-	entries, err := exif.Parse(r)
-	if err != nil {
-		return T{}, fmt.Errorf("parsing exif: %w", err)
-	}
-	if len(entries) < 1 {
-		return T{}, errors.New("no exif")
-	}
-
-	for _, entry := range entries {
-		if entry.ChunkType != exif.ChunkiTXT || entry.Keyword != exif.KeywordDescription {
-			continue
-		}
-		var t T
-		if err = json.NewDecoder(bytes.NewReader(entry.Text)).Decode(&t); err != nil {
-			continue
-		}
-		return t, nil
-	}
-
-	return T{}, fmt.Errorf("could not parse exif: %w", err)
 }
