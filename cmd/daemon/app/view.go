@@ -8,11 +8,11 @@ import (
 	"vrc-moments/cmd/daemon/components/tabs"
 )
 
-func (m Model) View() string {
+func (m *Model) View() string {
 	return m.Render()
 }
 
-func (m Model) Render() string {
+func (m *Model) Render() string {
 	top := stick.New(m.window.Width, 3)
 	top.SetRows(
 		[]*stick.Row{
