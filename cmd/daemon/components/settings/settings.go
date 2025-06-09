@@ -72,7 +72,7 @@ var (
 	normalStyle = lipgloss.NewStyle().Italic(true)
 )
 
-func New(c *Config) Model {
+func New(c *Config) *Model {
 	inputs := make([]textinput.Model, inputs)
 
 	for i := range inputs {
@@ -108,17 +108,17 @@ func New(c *Config) Model {
 	// TODO: Implement server
 	c.server = todoServer{}
 
-	return Model{
+	return &Model{
 		config: c,
 		inputs: inputs,
 	}
 }
 
-func (m Model) Init() tea.Cmd {
+func (m *Model) Init() tea.Cmd {
 	return tea.Batch(textinput.Blink)
 }
 
-func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	cmds := make([]tea.Cmd, len(m.inputs))
 
 	switch msg := msg.(type) {
@@ -163,7 +163,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
-func (m Model) View() string {
+func (m *Model) View() string {
 	return fmt.Sprintf("%s Settings\n\n %s\n %s\n\n %s\n %s\n\n %s\n %s\n\n %s\n",
 		m.errorMessage(),
 		inputStyle.Width(64).Render("Username"),
@@ -176,7 +176,7 @@ func (m Model) View() string {
 	)
 }
 
-func (m Model) errorMessage() string {
+func (m *Model) errorMessage() string {
 	if m.err == nil {
 		return ""
 	}
@@ -184,7 +184,7 @@ func (m Model) errorMessage() string {
 	return fmt.Sprintf("%s: %s!\n\n", errorStyle.Bold(true).Render("Error"), m.err.Error())
 }
 
-func (m Model) render(i int) string {
+func (m *Model) render(i int) string {
 	set := func(b bool) {
 		if b {
 			m.inputs[i].TextStyle = successStyle
@@ -232,7 +232,7 @@ func urlValidator(s string) error {
 	return err
 }
 
-func (m Model) save() tea.Cmd {
+func (m *Model) save() tea.Cmd {
 	return func() tea.Msg {
 		var errors []error
 		for i, input := range m.inputs {
@@ -313,7 +313,7 @@ func (c *Config) SetRoom(room string) {
 	c.LastWorld = room
 }
 
-func (m Model) Poll() tea.Cmd {
+func (m *Model) Poll() tea.Cmd {
 	return tea.Tick(5*time.Second, func(t time.Time) tea.Msg {
 		roomName, err := vrc.ExtractCurrentRoomName(vrc.DefaultLogPath)
 		if err != nil {
