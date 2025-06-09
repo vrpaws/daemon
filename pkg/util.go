@@ -86,7 +86,15 @@ func ExpandPatterns(patterns ...string) ([]string, error) {
 			if err != nil {
 				return files, err
 			}
-			files = append(files, matches...)
+			for _, match := range matches {
+				fi, err := os.Stat(match)
+				if err != nil {
+					continue
+				}
+				if !fi.IsDir() {
+					files = append(files, match)
+				}
+			}
 		}
 	}
 
