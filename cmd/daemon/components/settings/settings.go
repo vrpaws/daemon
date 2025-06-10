@@ -279,7 +279,9 @@ func (m *Model) nextInput() {
 
 // prevInput focuses the previous input field
 func (m *Model) prevInput() {
-	m.focused = (m.focused - 1) % (len(m.inputs) + 1)
+	a := m.focused - 1
+	b := len(m.inputs) + 1
+	m.focused = (a%b + b) % b
 }
 
 func (c *Config) SetPath(path string) {
