@@ -9,7 +9,7 @@ import (
 )
 
 func (m *Model) Init() tea.Cmd {
-	return tea.Batch(m.logger.Init(), m.tabs.Init())
+	return tea.Batch(m.logger.Init(), m.tabs.Init(), m.settings.Init(), tea.SetWindowTitle("VRC Moments"))
 }
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
