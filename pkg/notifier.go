@@ -17,14 +17,48 @@ type contextWithWatcher struct {
 }
 
 type Watcher struct {
-	Path     string
-	Ticker   *time.Ticker // should not be used after
-	Work     func()
-	Debounce time.Duration
+	path     string
+	ticker   *time.Ticker // should not be used after
+	work     func()
+	cooldown time.Duration
 
 	context  *contextWithWatcher
 	mu       sync.Mutex
 	debounce *time.Timer
+	watcher  *fsnotify.Watcher
+}
+
+func (w *Watcher) SetPath(path string) error {
+	if w.watcher == nil {
+		watcher, err := fsnotify.NewWatcher()
+		if err != nil {
+			return fmt.Errorf("failed to create watcher: %w", err)
+		}
+		w.watcher = watcher
+	} else {
+		err := w.watcher.Remove(w.path)
+		if err != nil {
+			return fmt.Errorf("failed to remove watcher: %w", err)
+		}
+	}
+
+	w.path = path
+	err := w.watcher.Add(w.path)
+	if err != nil {
+		return fmt.Errorf("failed to add watcher: %w", err)
+	}
+
+	return nil
+}
+
+func NewWatcher(path string, ticker *time.Ticker, debounce time.Duration, work func()) *Watcher {
+	return &Watcher{path: path, ticker: ticker, cooldown: debounce, work: work}
+}
+
+func (w *Watcher) SetWork(work func()) {
+	w.mu.Lock()
+	w.work = work
+	w.mu.Unlock()
 }
 
 func (w *Watcher) Stop() error {
@@ -36,35 +70,38 @@ func (w *Watcher) Stop() error {
 }
 
 func (w *Watcher) Watch() error {
-	if w.Work == nil {
+	if w.work == nil {
 		return errors.New("watcher: no work function")
 	}
 
-	if w.Path == "" {
+	if w.path == "" {
 		return errors.New("watcher: no path")
 	}
 
 	var ticker time.Ticker
-	if w.Ticker != nil {
-		ticker = *w.Ticker
+	if w.ticker != nil {
+		ticker = *w.ticker
 	} else {
 		ticker = *time.NewTicker(30 * time.Second)
 	}
 
-	if w.Debounce == 0 {
-		w.Debounce = 5 * time.Second
+	if w.cooldown == 0 {
+		w.cooldown = 5 * time.Second
 	}
 
 	if w.context != nil {
 		w.context.done()
 	}
 
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		return fmt.Errorf("failed to create watcher: %w", err)
+	if w.watcher == nil {
+		watcher, err := fsnotify.NewWatcher()
+		if err != nil {
+			return fmt.Errorf("failed to create watcher: %w", err)
+		}
+		w.watcher = watcher
 	}
 
-	err = watcher.Add(w.Path)
+	err := w.watcher.Add(w.path)
 	if err != nil {
 		return fmt.Errorf("failed to add watcher: %w", err)
 	}
@@ -77,7 +114,7 @@ func (w *Watcher) Watch() error {
 			select {
 			case <-ctx.Done():
 				return
-			case event, ok := <-watcher.Events:
+			case event, ok := <-w.watcher.Events:
 				if !ok {
 					return
 				}
@@ -85,14 +122,14 @@ func (w *Watcher) Watch() error {
 					continue
 				}
 				w.scheduleDebouncedWork()
-			case err, ok := <-watcher.Errors:
+			case err, ok := <-w.watcher.Errors:
 				if !ok {
 					return
 				}
 				log.Println("Error:", err)
 			case <-ticker.C:
 				w.mu.Lock()
-				w.Work()
+				w.work()
 				w.mu.Unlock()
 			}
 		}
@@ -105,8 +142,8 @@ func (w *Watcher) scheduleDebouncedWork() {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	if w.Debounce <= 0 {
-		w.Work()
+	if w.cooldown <= 0 {
+		w.work()
 		return
 	}
 
@@ -116,9 +153,9 @@ func (w *Watcher) scheduleDebouncedWork() {
 	}
 
 	// start a new one
-	w.debounce = time.AfterFunc(w.Debounce, func() {
+	w.debounce = time.AfterFunc(w.cooldown, func() {
 		w.mu.Lock()
 		defer w.mu.Unlock()
-		w.Work()
+		w.work()
 	})
 }

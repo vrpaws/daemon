@@ -47,11 +47,12 @@ func NewModel(path string) Model {
 			"Settings",
 		}, config.Username),
 		logger: logger.NewLogger(),
-		uploader: upload.NewModel(&lib.Watcher{
-			Path:     config.Path,
-			Ticker:   time.NewTicker(30 * time.Second),
-			Debounce: 0,
-		}),
+		uploader: upload.NewModel(lib.NewWatcher(
+			config.Path,
+			time.NewTicker(30*time.Second),
+			5*time.Second,
+			nil,
+		)),
 		settings: settings.New(config),
 		footer: footer.New([]*string{
 			&config.LastWorld,
