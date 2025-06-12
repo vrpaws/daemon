@@ -199,6 +199,16 @@ func (m *Model) render(i int) string {
 	}
 
 	switch i {
+	case serverURL:
+		if m.config.Server == m.inputs[i].Value() {
+			if urlValidator(m.config.Server) != nil {
+				m.inputs[i].TextStyle = errorStyle.Italic(true)
+			} else {
+				set(true)
+			}
+		} else {
+			set(false)
+		}
 	case username:
 		if m.config.Username == m.inputs[i].Value() {
 			if m.config.server.ValidUser(m.config.Username) != nil {
@@ -211,16 +221,6 @@ func (m *Model) render(i int) string {
 		}
 	case path:
 		set(m.config.Path == m.inputs[i].Value())
-	case serverURL:
-		if m.config.Server == m.inputs[i].Value() {
-			if urlValidator(m.config.Server) != nil {
-				m.inputs[i].TextStyle = errorStyle.Italic(true)
-			} else {
-				set(true)
-			}
-		} else {
-			set(false)
-		}
 	case submit:
 		if m.focused == len(m.inputs) {
 			return inputStyle.Underline(true).Bold(true).Render("Continue ->")
