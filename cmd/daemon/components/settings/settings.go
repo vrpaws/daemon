@@ -189,7 +189,7 @@ func (m *Model) render(i int) string {
 			if urlValidator(m.config.Server) != nil {
 				m.inputs[i].TextStyle = errorStyle.Italic(true)
 			} else {
-				set(true) // set Model.config.Server here
+				set(true)
 			}
 		} else {
 			set(false)
@@ -231,6 +231,14 @@ func (m *Model) save() tea.Cmd {
 			}
 			var err error
 			switch i {
+			case serverURL:
+				if m.config.Server == input.Value() && m.err == nil {
+					continue
+				}
+				err = m.config.SetServer(input.Value())
+				if err != nil {
+					errors = append(errors, err)
+				}
 			case username:
 				if m.config.Username == input.Value() && m.err == nil {
 					continue
@@ -244,14 +252,6 @@ func (m *Model) save() tea.Cmd {
 					continue
 				}
 				m.config.SetPath(input.Value())
-			case serverURL:
-				if m.config.Server == input.Value() && m.err == nil {
-					continue
-				}
-				err = m.config.SetServer(input.Value())
-				if err != nil {
-					errors = append(errors, err)
-				}
 			}
 			if err == nil {
 				m.inputs[i].Placeholder = input.Value()
