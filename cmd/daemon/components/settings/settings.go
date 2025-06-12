@@ -11,6 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"vrc-moments/pkg/api"
 	"vrc-moments/pkg/flight"
 	"vrc-moments/pkg/vrc"
 )
@@ -28,11 +29,7 @@ type Config struct {
 	Server    string
 	LastWorld string
 
-	server Server // some server
-}
-
-type Server interface {
-	ValidUser(string) error // integrate with flight.Cache to prevent api spam
+	server api.Server // some server
 }
 
 // TODO: Implement server
