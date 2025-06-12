@@ -16,6 +16,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	zone "github.com/lrstanley/bubblezone"
+
+	"vrc-moments/cmd/daemon/components/message"
 )
 
 var (
@@ -74,7 +76,7 @@ type Tabs struct {
 	activeIndex uint8
 	Items       []string
 	out         []string
-	extra       *string
+	extra       string
 	spinner     spinner.Model
 }
 
@@ -113,6 +115,9 @@ func (m Tabs) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		default:
 			return m, nil
 		}
+	case message.UsernameSet:
+		m.extra = string(msg)
+		return m, nil
 	}
 	return m, nil
 }
@@ -149,10 +154,7 @@ func (m Tabs) View() string {
 		}
 	}
 	row := lipgloss.JoinHorizontal(lipgloss.Top, m.out...)
-	var username string
-	if m.extra != nil {
-		username = activeTab.Render(*m.extra)
-	}
+	username := activeTab.Render(m.extra)
 	gap := tabGap.Render(strings.Repeat(" ", max(0, m.width-calculateWidths(row, username))))
 	row = lipgloss.JoinHorizontal(lipgloss.Bottom, row, gap, username)
 	return row
@@ -166,7 +168,7 @@ func calculateWidths(items ...string) int {
 	return total
 }
 
-func New(items []string, username *string) Tabs {
+func New(items []string, username string) Tabs {
 	return Tabs{
 		prefix:  "tab",
 		Items:   items,

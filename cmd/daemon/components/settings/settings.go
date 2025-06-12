@@ -11,6 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"vrc-moments/cmd/daemon/components/message"
 	"vrc-moments/pkg/api"
 	"vrc-moments/pkg/vrc"
 )
@@ -30,11 +31,6 @@ type Config struct {
 
 	server api.Server // some server
 }
-
-type (
-	UsernameSet string
-	RoomSet     string
-)
 
 const inputs = 3
 
@@ -95,7 +91,6 @@ func New(c *Config) *Model {
 		}
 	}
 
-	// TODO: Implement server
 	c.server = api.NewServer()
 
 	return &Model{
@@ -112,10 +107,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	cmds := make([]tea.Cmd, len(m.inputs))
 
 	switch msg := msg.(type) {
-	case UsernameSet:
+	case message.UsernameSet:
 		m.inputs[username].SetValue(string(msg))
 		return m, m.save()
-	case RoomSet:
+	case message.RoomSet:
 		m.config.SetRoom(string(msg))
 		return m, m.Poll()
 	case tea.KeyMsg:
@@ -223,43 +218,47 @@ func urlValidator(s string) error {
 }
 
 func (m *Model) save() tea.Cmd {
-	return func() tea.Msg {
-		var errors []error
-		for i, input := range m.inputs {
-			if input.Value() == "" {
-				continue
+	var cmds []tea.Cmd
+
+	for i, input := range m.inputs {
+		value := input.Value()
+		switch i {
+		case username:
+			if m.config.Username != value {
+				cmds = append(cmds, func() tea.Msg {
+					if err := m.config.SetUsername(value); err != nil {
+						return err
+					}
+					m.inputs[username].Placeholder = value
+					return message.UsernameSet(value)
+				})
 			}
-			var err error
-			switch i {
-			case serverURL:
-				if m.config.Server == input.Value() && m.err == nil {
-					continue
-				}
-				err = m.config.SetServer(input.Value())
-				if err != nil {
-					errors = append(errors, err)
-				}
-			case username:
-				if m.config.Username == input.Value() && m.err == nil {
-					continue
-				}
-				err = m.config.SetUsername(input.Value())
-				if err != nil {
-					errors = append(errors, err)
-				}
-			case path:
-				if m.config.Path == input.Value() && m.err == nil {
-					continue
-				}
-				m.config.SetPath(input.Value())
+		case path:
+			if m.config.Path != value {
+				cmds = append(cmds, func() tea.Msg {
+					m.config.SetPath(value)
+					m.inputs[path].Placeholder = value
+					return message.PathSet(value)
+				})
 			}
-			if err == nil {
-				m.inputs[i].Placeholder = input.Value()
+		case serverURL:
+			if m.config.Server != value {
+				cmds = append(cmds, func() tea.Msg {
+					if err := m.config.SetServer(value); err != nil {
+						return err
+					}
+					m.inputs[serverURL].Placeholder = value
+					return message.ServerSet(value)
+				})
 			}
 		}
-
-		return errors
 	}
+
+	if len(cmds) == 0 {
+		return nil
+	}
+	// fire all those commands; you'll get one Msg per change
+	return tea.Batch(cmds...)
 }
 
 // nextInput focuses the next input field
@@ -312,6 +311,6 @@ func (m *Model) Poll() tea.Cmd {
 			return err
 		}
 
-		return RoomSet(roomName)
+		return message.RoomSet(roomName)
 	})
 }

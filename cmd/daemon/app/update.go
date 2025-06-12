@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"vrc-moments/cmd/daemon/components/logger"
+	"vrc-moments/cmd/daemon/components/message"
 	"vrc-moments/pkg/vrc"
 )
 
@@ -47,6 +48,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.propagate(msg, &m.logger, &m.tabs)
 	case cursor.BlinkMsg:
 		return m.propagate(msg, &m.settings)
+	case message.RoomSet:
+		return m.propagate(msg, &m.settings)
+	case message.UsernameSet:
+		return m.propagate(msg, &m.settings, &m.tabs)
 	}
 
 	return m.propagate(msg)

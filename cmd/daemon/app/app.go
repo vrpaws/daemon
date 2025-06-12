@@ -45,7 +45,7 @@ func NewModel(path string) Model {
 			"Logger",
 			"Upload",
 			"Settings",
-		}, &config.Username),
+		}, config.Username),
 		logger: logger.NewLogger(),
 		uploader: upload.NewModel(&lib.Watcher{
 			Path:     config.Path,
