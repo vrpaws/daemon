@@ -4,6 +4,7 @@ import (
 	"log"
 
 	lib "vrc-moments/pkg"
+	"vrc-moments/pkg/vrc"
 )
 
 func main() {
@@ -18,7 +19,7 @@ func main() {
 
 	for _, file := range files {
 		log.Println("Reading from file:", file)
-		data, err := lib.GetVRCXDataFromFile(file)
+		data, err := vrc.GetVRCXDataFromFile(file)
 		if err != nil {
 			log.Printf("Error reading file %s: %v", file, err)
 			continue
