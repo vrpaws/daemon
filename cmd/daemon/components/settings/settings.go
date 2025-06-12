@@ -12,7 +12,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"vrc-moments/pkg/api"
-	"vrc-moments/pkg/flight"
 	"vrc-moments/pkg/vrc"
 )
 
@@ -30,20 +29,6 @@ type Config struct {
 	LastWorld string
 
 	server api.Server // some server
-}
-
-// TODO: Implement server
-type todoServer struct {
-	cache flight.Cache[string, bool]
-}
-
-func (s todoServer) ValidUser(username string) error {
-	_, err := s.cache.Get(username)
-	return err
-}
-
-func (s todoServer) work(string) (bool, error) {
-	return false, errors.New("server not yet implemented")
 }
 
 type (
@@ -111,7 +96,7 @@ func New(c *Config) *Model {
 	}
 
 	// TODO: Implement server
-	c.server = todoServer{flight.NewCache(todoServer{}.work)}
+	c.server = api.NewServer()
 
 	return &Model{
 		config: c,
@@ -120,7 +105,7 @@ func New(c *Config) *Model {
 }
 
 func (m *Model) Init() tea.Cmd {
-	return tea.Sequence(m.save(), textinput.Blink, m.Poll())
+	return tea.Batch(m.save(), textinput.Blink, m.Poll())
 }
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -204,7 +189,7 @@ func (m *Model) render(i int) string {
 			if urlValidator(m.config.Server) != nil {
 				m.inputs[i].TextStyle = errorStyle.Italic(true)
 			} else {
-				set(true)
+				set(true) // set Model.config.Server here
 			}
 		} else {
 			set(false)
@@ -244,13 +229,13 @@ func (m *Model) save() tea.Cmd {
 			if input.Value() == "" {
 				continue
 			}
-			m.inputs[i].Placeholder = input.Value()
+			var err error
 			switch i {
 			case username:
 				if m.config.Username == input.Value() && m.err == nil {
 					continue
 				}
-				err := m.config.SetUsername(input.Value())
+				err = m.config.SetUsername(input.Value())
 				if err != nil {
 					errors = append(errors, err)
 				}
@@ -263,15 +248,14 @@ func (m *Model) save() tea.Cmd {
 				if m.config.Server == input.Value() && m.err == nil {
 					continue
 				}
-				err := m.config.SetServer(input.Value())
+				err = m.config.SetServer(input.Value())
 				if err != nil {
 					errors = append(errors, err)
 				}
 			}
-		}
-
-		if len(errors) > 0 {
-			return errors
+			if err == nil {
+				m.inputs[i].Placeholder = input.Value()
+			}
 		}
 
 		return errors
