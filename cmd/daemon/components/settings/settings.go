@@ -11,6 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"vrc-moments/pkg/flight"
 	"vrc-moments/pkg/vrc"
 )
 
@@ -31,14 +32,21 @@ type Config struct {
 }
 
 type Server interface {
-	ValidUser(string) error
+	ValidUser(string) error // integrate with flight.Cache to prevent api spam
 }
 
 // TODO: Implement server
-type todoServer struct{}
+type todoServer struct {
+	cache flight.Cache[string, bool]
+}
 
 func (s todoServer) ValidUser(username string) error {
-	return errors.New("server not yet implemented")
+	_, err := s.cache.Get(username)
+	return err
+}
+
+func (s todoServer) work(string) (bool, error) {
+	return false, errors.New("server not yet implemented")
 }
 
 type (
@@ -106,7 +114,7 @@ func New(c *Config) *Model {
 	}
 
 	// TODO: Implement server
-	c.server = todoServer{}
+	c.server = todoServer{flight.NewCache(todoServer{}.work)}
 
 	return &Model{
 		config: c,
@@ -115,7 +123,7 @@ func New(c *Config) *Model {
 }
 
 func (m *Model) Init() tea.Cmd {
-	return tea.Batch(textinput.Blink)
+	return tea.Sequence(m.save(), textinput.Blink, m.Poll())
 }
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -239,6 +247,7 @@ func (m *Model) save() tea.Cmd {
 			if input.Value() == "" {
 				continue
 			}
+			m.inputs[i].Placeholder = input.Value()
 			switch i {
 			case username:
 				if m.config.Username == input.Value() && m.err == nil {

@@ -63,3 +63,39 @@ func (p *Cache[K, V]) Get(k K) (V, error) {
 
 	return j.val, j.err
 }
+
+func (p *Cache[K, V]) Force(k K) (V, error) {
+	var j *job[V]
+
+	for {
+		p.pmu.Lock()
+		if existing, ok := p.pending[k]; ok {
+			p.pmu.Unlock()
+			<-existing.done
+			continue
+		}
+		newJob := &job[V]{done: make(chan struct{})}
+		p.pending[k] = newJob
+		j = newJob
+		p.pmu.Unlock()
+		break
+	}
+
+	j.val, j.err = p.work(k)
+	if j.err == nil {
+		p.fmu.Lock()
+		p.finished[k] = j.val
+		p.fmu.Unlock()
+	}
+
+	p.pmu.Lock()
+	close(j.done)
+	delete(p.pending, k)
+	p.pmu.Unlock()
+
+	return j.val, j.err
+}
+
+func (p *Cache[K, V]) Work(k K) (V, error) {
+	return p.work(k)
+}

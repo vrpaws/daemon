@@ -1,14 +1,32 @@
 package app
 
 import (
+	"log"
+
 	"github.com/charmbracelet/bubbles/cursor"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"vrc-moments/cmd/daemon/components/logger"
+	"vrc-moments/pkg/vrc"
 )
 
 func (m *Model) Init() tea.Cmd {
+	usernames, err := vrc.GetUsername(vrc.DefaultLogPath)
+	if err != nil {
+		m.config.Username = lipgloss.NewStyle().Foreground(lipgloss.Color("#EB4034")).Render(err.Error())
+	} else if len(usernames) > 0 {
+		m.config.Username = usernames[0]
+	}
+
+	roomName, err := vrc.ExtractCurrentRoomName(vrc.DefaultLogPath)
+	if err != nil {
+		log.Printf("Error extracting room name: %v", err)
+	} else {
+		m.config.SetRoom(roomName)
+	}
+
 	return tea.Batch(m.logger.Init(), m.tabs.Init(), m.settings.Init(), tea.SetWindowTitle("VRC Moments"))
 }
 

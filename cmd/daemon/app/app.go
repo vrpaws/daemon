@@ -36,6 +36,7 @@ func NewModel(path string) Model {
 	}
 
 	model := Model{
+		config: config,
 		tabs: tabs.New([]string{
 			"Logger",
 			"Upload",
