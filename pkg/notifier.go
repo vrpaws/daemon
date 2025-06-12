@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"slices"
 	"sync"
 	"time"
 
@@ -17,7 +18,7 @@ type contextWithWatcher struct {
 }
 
 type Watcher struct {
-	path     string
+	paths    []string
 	ticker   *time.Ticker // should not be used after
 	work     func()
 	cooldown time.Duration
@@ -28,7 +29,7 @@ type Watcher struct {
 	watcher  *fsnotify.Watcher
 }
 
-func (w *Watcher) SetPath(path string) error {
+func (w *Watcher) SetPaths(paths []string) error {
 	if w.watcher == nil {
 		watcher, err := fsnotify.NewWatcher()
 		if err != nil {
@@ -36,14 +37,37 @@ func (w *Watcher) SetPath(path string) error {
 		}
 		w.watcher = watcher
 	} else {
-		err := w.watcher.Remove(w.path)
-		if err != nil {
-			return fmt.Errorf("failed to remove watcher: %w", err)
+		for _, path := range w.watcher.WatchList() {
+			if !slices.Contains(paths, path) {
+				err := w.watcher.Remove(path)
+				if err != nil {
+					return fmt.Errorf("failed to remove %s: %w", path, err)
+				}
+			}
 		}
 	}
 
-	w.path = path
-	err := w.watcher.Add(w.path)
+	for _, path := range paths {
+		err := w.watcher.Add(path)
+		if err != nil {
+			return fmt.Errorf("failed to add %s: %w", path, err)
+		}
+	}
+
+	return nil
+}
+
+func (w *Watcher) AddPath(path string) error {
+	if w.watcher == nil {
+		watcher, err := fsnotify.NewWatcher()
+		if err != nil {
+			return fmt.Errorf("failed to create watcher: %w", err)
+		}
+		w.watcher = watcher
+	}
+
+	w.paths = append(w.paths, path)
+	err := w.watcher.Add(path)
 	if err != nil {
 		return fmt.Errorf("failed to add watcher: %w", err)
 	}
@@ -51,8 +75,8 @@ func (w *Watcher) SetPath(path string) error {
 	return nil
 }
 
-func NewWatcher(path string, ticker *time.Ticker, debounce time.Duration, work func()) *Watcher {
-	return &Watcher{path: path, ticker: ticker, cooldown: debounce, work: work}
+func NewWatcher(paths []string, ticker *time.Ticker, debounce time.Duration, work func()) *Watcher {
+	return &Watcher{paths: paths, ticker: ticker, cooldown: debounce, work: work}
 }
 
 func (w *Watcher) SetWork(work func()) {
@@ -74,7 +98,7 @@ func (w *Watcher) Watch() error {
 		return errors.New("watcher: no work function")
 	}
 
-	if w.path == "" {
+	if len(w.paths) == 0 {
 		return errors.New("watcher: no path")
 	}
 
@@ -101,9 +125,11 @@ func (w *Watcher) Watch() error {
 		w.watcher = watcher
 	}
 
-	err := w.watcher.Add(w.path)
-	if err != nil {
-		return fmt.Errorf("failed to add watcher: %w", err)
+	for _, path := range w.paths {
+		err := w.watcher.Add(path)
+		if err != nil {
+			return fmt.Errorf("failed to add %s: %w", path, err)
+		}
 	}
 
 	ctx, done := context.WithCancel(context.Background())
