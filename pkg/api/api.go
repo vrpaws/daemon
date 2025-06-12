@@ -1,7 +1,6 @@
 package api
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -45,9 +44,6 @@ func (s *LocalServer) Upload(payload UploadPayload) error {
 }
 
 func (s *LocalServer) ValidUser(username string) error {
-	if username != "Elly" {
-		return errors.New("test error")
-	}
 	valid, err := s.usernameCache.Get(username)
 	if err != nil {
 		return fmt.Errorf("could not determine if user %q is valid: %w", username, err)

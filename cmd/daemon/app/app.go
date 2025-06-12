@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"os"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	zone "github.com/lrstanley/bubblezone"
@@ -11,6 +12,8 @@ import (
 	"vrc-moments/cmd/daemon/components/logger"
 	"vrc-moments/cmd/daemon/components/settings"
 	"vrc-moments/cmd/daemon/components/tabs"
+	"vrc-moments/cmd/daemon/components/upload"
+	lib "vrc-moments/pkg"
 )
 
 type Model struct {
@@ -18,6 +21,7 @@ type Model struct {
 	window   screen
 	tabs     tea.Model
 	logger   tea.Model
+	uploader tea.Model
 	settings tea.Model
 	footer   tea.Model
 }
@@ -42,7 +46,12 @@ func NewModel(path string) Model {
 			"Upload",
 			"Settings",
 		}, &config.Username),
-		logger:   logger.NewLogger(),
+		logger: logger.NewLogger(),
+		uploader: upload.NewModel(&lib.Watcher{
+			Path:     config.Path,
+			Ticker:   time.NewTicker(30 * time.Second),
+			Debounce: 0,
+		}),
 		settings: settings.New(config),
 		footer: footer.New([]*string{
 			&config.LastWorld,

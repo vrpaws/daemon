@@ -23,7 +23,7 @@ func (m *Model) Render() string {
 
 	var renderers = []Renderer{
 		m.logger.View,
-		empty,
+		m.uploader.View,
 		m.settings.View,
 	}
 
