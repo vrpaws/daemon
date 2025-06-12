@@ -44,55 +44,128 @@ func FileExists(path string) bool {
 	return true
 }
 
-// ExpandPatterns walks or globs each pattern and returns all files.
+// ExpandPatterns walks or globs each pattern and returns all matching files,
+// applying exclusions inline.  Supported exclusions:
+//   - "!path"       – exclude exactly that directory (but not its contents)
+//   - "!path/*"     – exclude files directly under that directory
+//   - "!path/***"   – exclude that directory and everything under it
 func ExpandPatterns(patterns ...string) ([]string, error) {
 	var files []string
+
+	// resolve ~/
 	homedir, err := os.UserHomeDir()
 	if err != nil {
 		homedir = os.Getenv("USERPROFILE")
 	}
 	if homedir == "" {
-		return nil, fmt.Errorf("cannot get home dir %w", err)
+		return nil, fmt.Errorf("cannot get home dir: %w", err)
 	}
+
+	// classify patterns
+	var includes []string
+	var exclDirOnly []string
+	var exclFilesLevel []string
+	var exclRecursive []string
+
 	for _, pat := range patterns {
-		if strings.HasPrefix(pat, "~/") {
-			pat = filepath.Join(homedir, pat[2:])
+		// detect exclusion before cleaning
+		isExclude := strings.HasPrefix(pat, "!")
+		p := pat
+		if isExclude {
+			p = strings.TrimPrefix(pat, "!")
 		}
-		// if it contains "**", do a recursive Walk
+		// expand ~/
+		var sep string
+		if sep = "~" + string(filepath.Separator); strings.HasPrefix(p, sep) {
+			p = filepath.Join(homedir, p[len(sep):])
+		} else if strings.HasPrefix(p, `~/`) || strings.HasPrefix(p, `~\`) {
+			p = filepath.Join(homedir, p[2:])
+		}
+		// now clean the actual filesystem path
+		p = filepath.Clean(p)
+
+		if isExclude {
+			e := p
+			sep := string(os.PathSeparator)
+			switch {
+			case strings.HasSuffix(e, sep+"***"):
+				exclRecursive = append(exclRecursive, strings.TrimSuffix(e, sep+"***"))
+			case strings.HasSuffix(e, sep+"*"):
+				exclFilesLevel = append(exclFilesLevel, strings.TrimSuffix(e, sep+"*"))
+			default:
+				exclDirOnly = append(exclDirOnly, e)
+			}
+		} else {
+			includes = append(includes, p)
+		}
+	}
+
+	// helper to test exclusion
+	isExcluded := func(path string) bool {
+		// dir-only: skip if path == dir (but files under are OK)
+		for _, d := range exclDirOnly {
+			if path == d {
+				return true
+			}
+		}
+		// files-only: skip if parent dir == target
+		for _, d := range exclFilesLevel {
+			if filepath.Dir(path) == d {
+				return true
+			}
+		}
+		// recursive: skip anything under target
+		for _, d := range exclRecursive {
+			if strings.HasPrefix(path, d+string(os.PathSeparator)) {
+				return true
+			}
+		}
+		return false
+	}
+
+	for _, pat := range includes {
 		if strings.Contains(pat, "**") {
+			// recursive walk
 			parts := strings.SplitN(pat, "**", 2)
-			root, suffix := parts[0], strings.TrimLeft(parts[1], `\/`)
-			err := filepath.Walk(root, func(path string, fi os.FileInfo, err error) error {
-				if err != nil || fi.IsDir() {
+			root := filepath.Clean(parts[0])
+			suffix := strings.TrimLeft(parts[1], string(filepath.Separator))
+
+			err := filepath.Walk(root, func(fp string, fi os.FileInfo, err error) error {
+				if err != nil {
 					return err
 				}
-				// try to match the "**/...suffix" portion against the tail of a path
-				rel := filepath.Base(path)
-				matched, matchErr := filepath.Match(suffix, rel)
-				if matchErr != nil {
-					return matchErr
+				if fi.IsDir() {
+					// only skip subtree when this dir is in the recursive-exclude list
+					for _, d := range exclRecursive {
+						if fp == d {
+							return filepath.SkipDir
+						}
+					}
+					return nil
 				}
-				if matched {
-					files = append(files, path)
+				if match, _ := filepath.Match(suffix, filepath.Base(fp)); match {
+					if !isExcluded(fp) {
+						files = append(files, fp)
+					}
 				}
 				return nil
 			})
 			if err != nil {
-				return files, err
+				return nil, err
 			}
 		} else {
-			// simple one-shot Glob
+			// one-shot glob
 			matches, err := filepath.Glob(pat)
 			if err != nil {
-				return files, err
+				return nil, err
 			}
-			for _, match := range matches {
-				fi, err := os.Stat(match)
-				if err != nil {
+			for _, m := range matches {
+				fi, err := os.Stat(m)
+				if err != nil || fi.IsDir() {
 					continue
 				}
-				if !fi.IsDir() {
-					files = append(files, match)
+				if !isExcluded(m) {
+					files = append(files, m)
 				}
 			}
 		}
