@@ -29,6 +29,10 @@ type Watcher struct {
 	watcher  *fsnotify.Watcher
 }
 
+func NewWatcher(paths []string, ticker *time.Ticker, debounce time.Duration, work func()) *Watcher {
+	return &Watcher{paths: paths, ticker: ticker, cooldown: debounce, work: work}
+}
+
 func (w *Watcher) SetPaths(paths []string) error {
 	if w.watcher == nil {
 		watcher, err := fsnotify.NewWatcher()
@@ -73,10 +77,6 @@ func (w *Watcher) AddPath(path string) error {
 	}
 
 	return nil
-}
-
-func NewWatcher(paths []string, ticker *time.Ticker, debounce time.Duration, work func()) *Watcher {
-	return &Watcher{paths: paths, ticker: ticker, cooldown: debounce, work: work}
 }
 
 func (w *Watcher) SetWork(work func()) {

@@ -48,7 +48,7 @@ func NewModel(path string) Model {
 		}, config.Username),
 		logger: logger.NewLogger(),
 		uploader: upload.NewModel(lib.NewWatcher(
-			config.Path,
+			[]string{config.Path},
 			time.NewTicker(30*time.Second),
 			5*time.Second,
 			nil,
