@@ -12,7 +12,7 @@ import (
 	"vrc-moments/pkg/exif"
 )
 
-type Screenshot struct {
+type Metadata struct {
 	Application string `json:"application"`
 	Version     int64  `json:"version"`
 	Author      User   `json:"author"`
@@ -31,21 +31,21 @@ type World struct {
 	InstanceID string `json:"instanceId"`
 }
 
-func GetVRCXDataFromFile(path string) (Screenshot, error) {
+func GetVRCXDataFromFile(path string) (Metadata, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer f.Close()
 
-	return getVRCXData[Screenshot](f)
+	return getVRCXData[Metadata](f)
 }
 
-func GetVRCXData(r io.ReadSeeker) (Screenshot, error) {
-	return getVRCXData[Screenshot](r)
+func GetVRCXData(r io.ReadSeeker) (Metadata, error) {
+	return getVRCXData[Metadata](r)
 }
 
-func getVRCXData[T Screenshot](r io.ReadSeeker) (T, error) {
+func getVRCXData[T Metadata](r io.ReadSeeker) (T, error) {
 	entries, err := exif.Parse(r)
 	if err != nil {
 		return T{}, fmt.Errorf("parsing exif: %w", err)
