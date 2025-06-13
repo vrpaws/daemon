@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"os"
 
 	"vrc-moments/pkg/exif"
@@ -34,7 +33,7 @@ type World struct {
 func GetVRCXDataFromFile(path string) (Metadata, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		log.Fatal(err)
+		return Metadata{}, fmt.Errorf("error opening file: %w", err)
 	}
 	defer f.Close()
 
