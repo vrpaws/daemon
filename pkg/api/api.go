@@ -1,60 +1,124 @@
 package api
 
 import (
+	"context"
+	"crypto/md5"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
 	"fmt"
+	"hash"
 	"io"
+	"os"
+	"path/filepath"
 	"time"
 
-	"vrc-moments/pkg/flight"
+	"github.com/cespare/xxhash/v2"
+
 	"vrc-moments/pkg/vrc"
 )
 
 type Server interface {
 	ValidUser(string) error // integrate with flight.Cache to prevent api spam
-	Upload(UploadPayload) error
+	Upload(context.Context, UploadPayload) error
+	SetRemote(string) error
 }
 
 type UploadPayload struct {
 	Username string `json:"username"`
 	UserID   string `json:"user_id"`
-	Files    []File `json:"files"`
+	File     *File  `json:"file"`
 }
 
 type File struct {
-	Date       time.Time      `json:"date"`
-	Filename   string         `json:"filename"`
-	Screenshot vrc.Screenshot `json:"screenshot"`
-	Data       io.Reader      `json:"-"`
+	Date     time.Time     `json:"date"`
+	Filename string        `json:"filename"`
+	MD5Hash  string        `json:"md5"`
+	SHA256   string        `json:"sha256"`
+	XXHash   string        `json:"xx"`
+	Metadata *vrc.Metadata `json:"metadata"`
+	Data     io.ReadCloser `json:"-"`
 }
 
-type LocalServer struct {
-	usernameCache flight.Cache[string, bool]
-}
-
-func NewServer() *LocalServer {
-	return &LocalServer{
-		usernameCache: flight.NewCache(func(string) (bool, error) {
-			return true, nil
-		}),
+func (f *File) Close() error {
+	if f.Data == nil {
+		return errors.New("file is nil")
 	}
+
+	return f.Data.Close()
 }
 
-func (s *LocalServer) Upload(payload UploadPayload) error {
-	return nil
-}
-
-func (s *LocalServer) ValidUser(username string) error {
-	valid, err := s.usernameCache.Get(username)
+func OpenFile(path string) (*File, error) {
+	file, err := os.Open(path)
 	if err != nil {
-		return fmt.Errorf("could not determine if user %q is valid: %w", username, err)
+		return nil, fmt.Errorf("failed to open file: %v", err)
 	}
-	if !valid {
-		return fmt.Errorf("user %q is not valid", username)
+	defer func() {
+		if err != nil {
+			file.Close()
+		}
+	}()
+
+	f, err := Parse(file)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse file: %v", err)
 	}
 
-	return nil
+	f.Filename = filepath.Base(path)
+	f.Data = file
+
+	stat, err := file.Stat()
+	if err != nil {
+		f.Date = time.Now()
+	} else {
+		f.Date = stat.ModTime()
+	}
+
+	return f, nil
 }
 
-func (s *LocalServer) validUser(_ string) (bool, error) {
-	return true, nil
+func Parse(file io.ReadSeeker) (*File, error) {
+	sha256, err := digest(sha256.New(), file)
+	if err != nil {
+		return nil, err
+	}
+
+	hash, err := digest(md5.New(), file)
+	if err != nil {
+		return nil, fmt.Errorf("failed to hash file: %w", err)
+	}
+
+	xxhash, err := digest(xxhash.New(), file)
+	if err != nil {
+		return nil, fmt.Errorf("failed to hash file: %w", err)
+	}
+
+	metadata, _ := digest(new(vrc.Metadata), file)
+
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		return nil, fmt.Errorf("error seeking to beginning of file: %w", err)
+	}
+
+	return &File{
+		SHA256:   sum(sha256),
+		MD5Hash:  sum(hash),
+		XXHash:   sum(xxhash),
+		Metadata: metadata,
+	}, nil
+}
+
+func digest[T io.Writer](t T, file io.ReadSeeker) (T, error) {
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		return t, fmt.Errorf("error seeking to beginning of file: %w", err)
+	}
+
+	if _, err := io.Copy(t, file); err != nil && !errors.Is(err, vrc.EOF) {
+		return t, fmt.Errorf("error hashing file: %w", err)
+	}
+
+	return t, nil
+}
+
+func sum(hash hash.Hash) string {
+	return hex.EncodeToString(hash.Sum(nil))
 }

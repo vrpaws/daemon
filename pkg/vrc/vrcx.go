@@ -44,6 +44,28 @@ func GetVRCXData(r io.ReadSeeker) (Metadata, error) {
 	return getVRCXData[Metadata](r)
 }
 
+var EOF = errors.New("EOF")
+
+// Write parses bytes passed onto it to exif.Parse
+// It only processes the first p bytes passed onto it and always returns an error.
+// A successful Metadata read returns EOF so that users of io.Copy will return early.
+func (m *Metadata) Write(p []byte) (n int, err error) {
+	if m == nil {
+		return 0, errors.New("nil metadata")
+	}
+	if len(p) == 0 {
+		return 0, errors.New("empty metadata")
+	}
+
+	data, err := getVRCXData[Metadata](bytes.NewReader(p))
+	if err != nil {
+		return 0, fmt.Errorf("error parsing VRCX data: %w", err)
+	}
+	*m = data
+
+	return len(p), EOF
+}
+
 func getVRCXData[T Metadata](r io.ReadSeeker) (T, error) {
 	entries, err := exif.Parse(r)
 	if err != nil {

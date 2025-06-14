@@ -1,8 +1,12 @@
 package lib
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 )
@@ -42,6 +46,20 @@ func FileExists(path string) bool {
 		return false
 	}
 	return true
+}
+
+func Encode(v any) (io.Reader, error) {
+	var buf bytes.Buffer
+	return &buf, json.NewEncoder(&buf).Encode(v)
+}
+
+func Decode[T any](r io.Reader) (T, error) {
+	var t T
+	return t, json.NewDecoder(r).Decode(&t)
+}
+
+func RemoveExtension(filename string) string {
+	return strings.TrimSuffix(filename, path.Ext(filename))
 }
 
 // ExpandPatterns walks or globs each pattern and returns all matching files,
