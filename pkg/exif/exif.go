@@ -12,7 +12,8 @@ type ChunkType = string
 
 const (
 	ChunkiTXT ChunkType = "iTXt"
-	ChunkEND  ChunkType = "IEND"
+	ChunkIDAT ChunkType = "IDAT"
+	ChunkIEND ChunkType = "IEND"
 )
 
 type KeywordType = string
@@ -64,6 +65,14 @@ read:
 		}
 		cType := string(chunkTypeBytes)
 
+		switch cType {
+		case ChunkiTXT: // continue processing
+		case ChunkIDAT, ChunkIEND:
+			break read // end of data chunks
+		default:
+			continue // not a chunk to process
+		}
+
 		// Read chunk data
 		data := make([]byte, length)
 		if _, err := io.ReadFull(r, data); err != nil {
@@ -75,18 +84,11 @@ read:
 			return nil, fmt.Errorf("skipping CRC: %w", err)
 		}
 
-		switch cType {
-		case ChunkiTXT:
-			entry, err := parseITXtData(cType, data)
-			if err != nil {
-				return nil, err
-			}
-			entries = append(entries, entry)
-		case ChunkEND:
-			break read
-		default:
-			continue
+		entry, err := parseITXtData(cType, data)
+		if err != nil {
+			return nil, err
 		}
+		entries = append(entries, entry)
 	}
 
 	return entries, nil
