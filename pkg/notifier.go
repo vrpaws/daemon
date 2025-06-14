@@ -20,7 +20,7 @@ type contextWithWatcher struct {
 type Watcher struct {
 	paths    []string
 	ticker   *time.Ticker // should not be used after
-	work     func()
+	work     func(*fsnotify.Event)
 	cooldown time.Duration
 
 	context  *contextWithWatcher
@@ -29,7 +29,7 @@ type Watcher struct {
 	watcher  *fsnotify.Watcher
 }
 
-func NewWatcher(paths []string, ticker *time.Ticker, debounce time.Duration, work func()) *Watcher {
+func NewWatcher(paths []string, ticker *time.Ticker, debounce time.Duration, work func(*fsnotify.Event)) *Watcher {
 	return &Watcher{paths: paths, ticker: ticker, cooldown: debounce, work: work}
 }
 
@@ -79,7 +79,7 @@ func (w *Watcher) AddPath(path string) error {
 	return nil
 }
 
-func (w *Watcher) SetWork(work func()) {
+func (w *Watcher) SetWork(work func(*fsnotify.Event)) {
 	w.mu.Lock()
 	w.work = work
 	w.mu.Unlock()
@@ -147,7 +147,7 @@ func (w *Watcher) Watch() error {
 				if !event.Has(fsnotify.Write) {
 					continue
 				}
-				w.scheduleDebouncedWork()
+				w.scheduleDebouncedWork(&event)
 			case err, ok := <-w.watcher.Errors:
 				if !ok {
 					return
@@ -155,7 +155,7 @@ func (w *Watcher) Watch() error {
 				log.Println("Error:", err)
 			case <-ticker.C:
 				w.mu.Lock()
-				w.work()
+				w.work(nil)
 				w.mu.Unlock()
 			}
 		}
@@ -164,12 +164,12 @@ func (w *Watcher) Watch() error {
 	return nil
 }
 
-func (w *Watcher) scheduleDebouncedWork() {
+func (w *Watcher) scheduleDebouncedWork(event *fsnotify.Event) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
 	if w.cooldown <= 0 {
-		w.work()
+		w.work(event)
 		return
 	}
 
@@ -182,6 +182,6 @@ func (w *Watcher) scheduleDebouncedWork() {
 	w.debounce = time.AfterFunc(w.cooldown, func() {
 		w.mu.Lock()
 		defer w.mu.Unlock()
-		w.work()
+		w.work(event)
 	})
 }

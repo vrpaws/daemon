@@ -14,7 +14,7 @@ type LocalServer struct {
 	remote        *url.URL
 }
 
-func NewServer(remote *url.URL) *LocalServer {
+func NewLocal(remote *url.URL) *LocalServer {
 	return &LocalServer{
 		usernameCache: flight.NewCache(func(string) (bool, error) {
 			return true, nil

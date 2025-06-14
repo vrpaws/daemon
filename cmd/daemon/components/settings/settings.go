@@ -58,15 +58,15 @@ var (
 	normalStyle = lipgloss.NewStyle().Italic(true)
 )
 
-func New(c *Config) *Model {
+func New(config *Config, server api.Server) *Model {
 	inputs := make([]textinput.Model, inputs)
 
 	for i := range inputs {
 		switch i {
 		case username:
 			inputs[i] = textinput.New()
-			inputs[i].Placeholder = c.Username
-			inputs[i].SetValue(c.Username)
+			inputs[i].Placeholder = config.Username
+			inputs[i].SetValue(config.Username)
 			inputs[i].CharLimit = 64
 			inputs[i].Width = 64
 			inputs[i].Prompt = ""
@@ -74,16 +74,16 @@ func New(c *Config) *Model {
 
 		case path:
 			inputs[i] = textinput.New()
-			inputs[i].Placeholder = c.Path
-			inputs[i].SetValue(c.Path)
+			inputs[i].Placeholder = config.Path
+			inputs[i].SetValue(config.Path)
 			inputs[i].CharLimit = 64
 			inputs[i].Width = 64
 			inputs[i].Prompt = ""
 
 		case serverURL:
 			inputs[i] = textinput.New()
-			inputs[i].Placeholder = c.Server
-			inputs[i].SetValue(c.Server)
+			inputs[i].Placeholder = config.Server
+			inputs[i].SetValue(config.Server)
 			inputs[i].CharLimit = 64
 			inputs[i].Width = 64
 			inputs[i].Prompt = ""
@@ -91,10 +91,10 @@ func New(c *Config) *Model {
 		}
 	}
 
-	c.server = api.NewServer()
+	config.server = server
 
 	return &Model{
-		config: c,
+		config: config,
 		inputs: inputs,
 	}
 }
@@ -297,7 +297,7 @@ func (c *Config) SetServer(link string) error {
 	}
 	c.Server = parsed.String()
 
-	return nil
+	return c.server.SetRemote(c.Server)
 }
 
 func (c *Config) SetRoom(room string) {

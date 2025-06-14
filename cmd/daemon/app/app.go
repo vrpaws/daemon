@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"time"
 
@@ -14,11 +15,16 @@ import (
 	"vrc-moments/cmd/daemon/components/tabs"
 	"vrc-moments/cmd/daemon/components/upload"
 	lib "vrc-moments/pkg"
+	"vrc-moments/pkg/api"
 )
 
 type Model struct {
-	config   *settings.Config
-	window   screen
+	window screen
+
+	config  *settings.Config
+	watcher *lib.Watcher
+	server  api.Server
+
 	tabs     tea.Model
 	logger   tea.Model
 	uploader tea.Model
@@ -34,26 +40,35 @@ type screen struct {
 func NewModel(path string) Model {
 	config := &settings.Config{
 		Username:  "Unknown",
-		Path:      "~/Pictures/VRChat",
+		Path:      path,
 		Server:    "Unset",
 		LastWorld: "Unknown",
 	}
 
+	server := api.NewLocal(&url.URL{
+		Scheme: "https",
+		Host:   config.Server,
+	})
+	watcher := lib.NewWatcher(
+		[]string{config.Path},
+		time.NewTicker(30*time.Second),
+		5*time.Second,
+		nil,
+	)
+
 	model := Model{
-		config: config,
+		config:  config,
+		watcher: watcher,
+		server:  server,
+
 		tabs: tabs.New([]string{
 			"Logger",
 			"Upload",
 			"Settings",
 		}, config.Username),
-		logger: logger.NewLogger(),
-		uploader: upload.NewModel(lib.NewWatcher(
-			[]string{config.Path},
-			time.NewTicker(30*time.Second),
-			5*time.Second,
-			nil,
-		)),
-		settings: settings.New(config),
+		logger:   logger.NewLogger(),
+		uploader: upload.NewModel(watcher, server),
+		settings: settings.New(config, server),
 		footer: footer.New([]*string{
 			&config.LastWorld,
 			&config.Server,
