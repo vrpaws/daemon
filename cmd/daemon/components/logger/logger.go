@@ -4,6 +4,7 @@ package logger
 // from outside the program using Program.Send(Msg).
 
 import (
+	"log"
 	"slices"
 	"strings"
 
@@ -14,6 +15,7 @@ import (
 
 var (
 	spinnerStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("63"))
+	errorStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#EB4034")).Bold(true).SetString("ERROR")
 	helpStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Margin(1, 0)
 	dotStyle      = helpStyle.UnsetMargins()
 	durationStyle = dotStyle
@@ -111,6 +113,16 @@ func (m *Logger) Init() tea.Cmd {
 
 func (m *Logger) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case error:
+		go log.Printf("%s: %v", errorStyle, msg)
+		return m, nil
+	case []error:
+		go func() {
+			for _, msg := range msg {
+				log.Printf("%s: %v", errorStyle, msg)
+			}
+		}()
+		return m, nil
 	case tea.WindowSizeMsg:
 		m.maxHeight = max(0, msg.Height-14)
 		m.width = msg.Width
