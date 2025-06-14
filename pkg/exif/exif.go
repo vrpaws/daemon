@@ -70,6 +70,9 @@ read:
 		case ChunkIDAT, ChunkIEND:
 			break read // end of data chunks
 		default:
+			if _, err := r.Seek(int64(length)+4, io.SeekCurrent); err != nil {
+				return nil, fmt.Errorf("seeking chunk: %w", err)
+			}
 			continue // not a chunk to process
 		}
 
