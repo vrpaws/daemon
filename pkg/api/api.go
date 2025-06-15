@@ -94,7 +94,10 @@ func Parse(file io.ReadSeeker) (*File, error) {
 		return nil, fmt.Errorf("failed to hash file: %w", err)
 	}
 
-	metadata, _ := digest(new(vrc.Metadata), file)
+	metadata, err := digest(new(vrc.Metadata), file)
+	if err != nil {
+		metadata = nil
+	}
 
 	if _, err := file.Seek(0, io.SeekStart); err != nil {
 		return nil, fmt.Errorf("error seeking to beginning of file: %w", err)
