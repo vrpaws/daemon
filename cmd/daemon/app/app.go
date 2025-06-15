@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"net/url"
 	"os"
@@ -35,6 +36,7 @@ type Model struct {
 	uploader tea.Model
 	settings tea.Model
 	footer   tea.Model
+	logFile  io.Writer
 }
 
 type screen struct {
@@ -73,6 +75,7 @@ func NewModel(u *url.URL, config *settings.Config) Model {
 			&config.LastWorld,
 			&config.Server,
 		}),
+		logFile: io.Discard,
 	}
 
 	return model

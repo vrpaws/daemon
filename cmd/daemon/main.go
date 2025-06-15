@@ -39,8 +39,10 @@ func main() {
 
 	model := app.NewModel(remote, config)
 	program := model.Run()
-	defer lib.LogOutput(&model)()
+	logFile, done := lib.LogOutput(&model)
+	defer done()
 
+	program.Send(logFile)
 	program.Send(program)
 	program.Send(err)
 	program.Send(usernameErr)
@@ -54,7 +56,11 @@ func main() {
 				logger.Message("!"),
 			},
 			Separator: "",
+			Save:      true,
 		})
+	}
+	if config.Token == "" {
+		program.Send(logger.NewMessageTime("Token is unset, please go to the settings tab to change it"))
 	}
 
 	program.Wait()

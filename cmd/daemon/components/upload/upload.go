@@ -158,6 +158,7 @@ func (m *Uploader) upload(event *fsnotify.Event) (string, error) {
 				logger.Message("!"),
 			},
 			Separator: "",
+			Save:      true,
 		})
 		return payload.File.SHA256, nil
 	}

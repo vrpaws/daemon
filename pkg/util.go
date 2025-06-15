@@ -117,16 +117,16 @@ func RemoveExtension(filename string) string {
 	return strings.TrimSuffix(filename, path.Ext(filename))
 }
 
-func LogOutput(writer io.Writer) func() {
+func LogOutput(writer io.Writer) (io.Writer, func()) {
 	logFolder := filepath.Join(ConfigDirectory, "logs")
 	logfile := filepath.Join(logFolder, fmt.Sprintf("log-%s.txt", time.Now().Format("2006-01-02_15-04-05")))
 	err := os.MkdirAll(logFolder, 0755)
 	if err != nil {
-		return func() {}
+		return io.Discard, func() {}
 	}
 	f, err := os.OpenFile(logfile, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0666)
 	if err != nil {
-		return func() {}
+		return io.Discard, func() {}
 	}
 
 	mw := io.MultiWriter(writer, f)
@@ -140,7 +140,7 @@ func LogOutput(writer io.Writer) func() {
 		close(exit)
 	}()
 
-	return func() {
+	return f, func() {
 		_ = w.Close()
 		<-exit
 		fi, err := f.Stat()

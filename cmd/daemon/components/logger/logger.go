@@ -5,6 +5,7 @@ package logger
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"slices"
 	"strings"
@@ -14,6 +15,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"vrc-moments/cmd/daemon/components/message"
 	"vrc-moments/pkg/gradient"
 )
 
@@ -31,11 +33,30 @@ var (
 type Renderable interface {
 	String(width int) (text string, height int)
 	Len() int
+	ShouldSave() bool
+	Raw() string
 }
 
 type Concat struct {
 	Items     []Renderable
 	Separator string
+	Save      bool // saves every Renderable if set to true, otherwise will use each's Renderable.ShouldSave
+}
+
+func (c Concat) Raw() string {
+	var sb strings.Builder
+
+	for _, renderable := range c.Items {
+		if !c.ShouldSave() && (renderable == nil || !renderable.ShouldSave()) {
+			continue
+		}
+		if c.Separator != "" && sb.Len() > 0 {
+			sb.WriteString(c.Separator)
+		}
+		sb.WriteString(strings.TrimRight(renderable.Raw(), "\r\n"))
+	}
+
+	return sb.String()
 }
 
 func (c Concat) String(maxWidth int) (string, int) {
@@ -99,6 +120,10 @@ func (c Concat) Len() int {
 	return 0
 }
 
+func (c Concat) ShouldSave() bool {
+	return c.Save
+}
+
 type Message string // sending Message will only append to the logger but not the log file
 
 // MessageTime is like Message, but with an optional Time
@@ -133,12 +158,28 @@ func (r *MessageTime) Len() int {
 	return r.Width
 }
 
+func (r *MessageTime) Raw() string {
+	return r.Time.Format("2006/01/02 15:04:05 ") + r.Message
+}
+
+func (r *MessageTime) ShouldSave() bool {
+	return true
+}
+
 func (r Message) String(maxWidth int) (string, int) {
 	return render(string(r), maxWidth)
 }
 
 func (r Message) Len() int {
 	return lipgloss.Width(string(r))
+}
+
+func (r Message) ShouldSave() bool {
+	return false
+}
+
+func (r Message) Raw() string {
+	return string(r)
 }
 
 type GradientString struct {
@@ -171,6 +212,14 @@ func (r *GradientString) Advance() {
 
 func (r *GradientString) Len() int {
 	return r.Width
+}
+
+func (r *GradientString) ShouldSave() bool {
+	return false
+}
+
+func (r *GradientString) Raw() string {
+	return r.Message
 }
 
 func render(text string, maxWidth int) (string, int) {
@@ -239,6 +288,8 @@ type Logger struct {
 	width     int
 	height    int
 	last      int
+
+	logWriter io.Writer
 }
 
 var globalLogger *Logger
@@ -252,6 +303,8 @@ func NewLogger() *Logger {
 			spinner:  s,
 			messages: make([]Renderable, numLastResults),
 			last:     -1,
+
+			logWriter: io.Discard,
 		}
 	}
 
@@ -264,6 +317,9 @@ func (m *Logger) Init() tea.Cmd {
 
 func (m *Logger) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case io.Writer:
+		m.logWriter = msg
+		return m, nil
 	case error:
 		go log.Printf("%s: %v", errorStyle, msg)
 		return m, nil
@@ -306,6 +362,10 @@ func (m *Logger) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case Renderable:
 		m.messages = append(m.messages[1:], msg)
+		if msg.ShouldSave() {
+			_, err := m.logWriter.Write([]byte(strings.TrimRight(msg.Raw(), "\r\n") + "\n"))
+			return m, message.Cmd(err)
+		}
 		return m, nil
 	case spinner.TickMsg:
 		var cmd tea.Cmd

@@ -1,6 +1,8 @@
 package app
 
 import (
+	"io"
+
 	"github.com/charmbracelet/bubbles/cursor"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -17,6 +19,8 @@ func (m *Model) Init() tea.Cmd {
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case io.Writer:
+		m.logFile = msg
 	case tea.KeyMsg:
 		switch msg.Type {
 		case tea.KeyCtrlC:
