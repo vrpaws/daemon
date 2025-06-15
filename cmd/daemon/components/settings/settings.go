@@ -3,8 +3,10 @@ package settings
 import (
 	"errors"
 	"fmt"
+	"log"
+	"math"
 	"net/url"
-	"os"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -12,6 +14,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"vrc-moments/cmd/daemon/components/message"
+	lib "vrc-moments/pkg"
 	"vrc-moments/pkg/api"
 	"vrc-moments/pkg/vrc"
 )
@@ -24,18 +27,18 @@ type Model struct {
 }
 
 type Config struct {
-	Username  string
-	Path      string
-	Server    string
-	LastWorld string
+	Username  string `json:"username,omitempty"`
+	Token     string `json:"token,omitempty"`
+	Path      string `json:"path,omitempty"`
+	Server    string `json:"server,omitempty"`
+	LastWorld string `json:"last_world,omitempty"`
 
 	server api.Server // some server
 }
 
-const inputs = 3
-
 const (
 	username = iota
+	token
 	path
 	serverURL
 )
@@ -45,6 +48,7 @@ const submit = -1
 const (
 	hotPink     = lipgloss.Color("#FF06B7")
 	redError    = lipgloss.Color("#EB4034")
+	lightGrey   = lipgloss.Color("#D3D3D3")
 	pastelGreen = lipgloss.Color("#6A994E")
 	darkGray    = lipgloss.Color("#767676")
 )
@@ -52,6 +56,8 @@ const (
 var (
 	inputStyle    = lipgloss.NewStyle().Foreground(hotPink)
 	errorStyle    = lipgloss.NewStyle().Foreground(redError)
+	disabledStyle = lipgloss.NewStyle().Foreground(darkGray).Strikethrough(true)
+	submitStyle   = lipgloss.NewStyle().Underline(true).Bold(true)
 	successStyle  = lipgloss.NewStyle().Foreground(pastelGreen)
 	continueStyle = lipgloss.NewStyle().Foreground(darkGray)
 
@@ -59,43 +65,61 @@ var (
 )
 
 func New(config *Config, server api.Server) *Model {
-	inputs := make([]textinput.Model, inputs)
+	var inputs []textinput.Model
 
-	for i := range inputs {
+models:
+	for i := range math.MaxInt {
 		switch i {
 		case username:
-			inputs[i] = textinput.New()
-			inputs[i].Placeholder = config.Username
-			inputs[i].SetValue(config.Username)
-			inputs[i].CharLimit = 64
-			inputs[i].Width = 64
-			inputs[i].Prompt = ""
-			inputs[i].Focus()
+			input := textinput.New()
+			input.Placeholder = config.Username
+			input.SetValue(config.Username)
+			input.CharLimit = 64
+			input.Width = 64
+			input.Prompt = ""
+			input.Blur()
+			inputs = append(inputs, input)
+
+		case token:
+			input := textinput.New()
+			input.Placeholder = config.Token
+			input.SetValue(config.Token)
+			input.CharLimit = 64
+			input.Width = 64
+			input.Prompt = ""
+			input.Focus()
+			inputs = append(inputs, input)
 
 		case path:
-			inputs[i] = textinput.New()
-			inputs[i].Placeholder = config.Path
-			inputs[i].SetValue(config.Path)
-			inputs[i].CharLimit = 64
-			inputs[i].Width = 64
-			inputs[i].Prompt = ""
+			input := textinput.New()
+			input.Placeholder = config.Path
+			input.SetValue(config.Path)
+			input.CharLimit = 64
+			input.Width = 64
+			input.Prompt = ""
+			inputs = append(inputs, input)
 
 		case serverURL:
-			inputs[i] = textinput.New()
-			inputs[i].Placeholder = config.Server
-			inputs[i].SetValue(config.Server)
-			inputs[i].CharLimit = 64
-			inputs[i].Width = 64
-			inputs[i].Prompt = ""
-			inputs[i].Validate = urlValidator
+			input := textinput.New()
+			input.Placeholder = config.Server
+			input.SetValue(config.Server)
+			input.CharLimit = 64
+			input.Width = 64
+			input.Prompt = ""
+			input.Validate = urlValidator
+			inputs = append(inputs, input)
+
+		default:
+			break models
 		}
 	}
 
 	config.server = server
 
 	return &Model{
-		config: config,
-		inputs: inputs,
+		config:  config,
+		inputs:  inputs,
+		focused: 1,
 	}
 }
 
@@ -120,10 +144,21 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, m.save()
 			}
 			m.nextInput()
+			for m.focused == username {
+				m.nextInput()
+			}
 		case tea.KeyShiftTab, tea.KeyCtrlP, tea.KeyUp:
 			m.prevInput()
+			for m.focused == username {
+				m.prevInput()
+			}
 		case tea.KeyTab, tea.KeyCtrlN, tea.KeyDown:
 			m.nextInput()
+			for m.focused == username {
+				m.nextInput()
+			}
+		case tea.KeyEsc:
+			return m, m.discard()
 		default:
 		}
 		for i := range m.inputs {
@@ -149,15 +184,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) View() string {
-	return fmt.Sprintf("%s Settings\n\n %s\n %s\n\n %s\n %s\n\n %s\n %s\n\n %s\n",
+	return fmt.Sprintf("%sSettings\n\n %s\n",
 		m.errorMessage(),
-		inputStyle.Width(64).Render("Username"),
-		m.render(username),
-		inputStyle.Width(64).Render("Pictures Directory"),
-		m.render(path),
-		inputStyle.Width(64).Render("Server URL"),
-		m.render(serverURL),
-		m.render(submit),
+		m.renderAll(),
 	)
 }
 
@@ -169,52 +198,95 @@ func (m *Model) errorMessage() string {
 	return fmt.Sprintf("%s: %s!\n\n", errorStyle.Bold(true).Render("Error"), m.err.Error())
 }
 
+func (m *Model) renderAll() string {
+	var b strings.Builder
+
+	for i := range len(m.inputs) {
+		r := m.render(i)
+		if r == "" {
+			continue
+		}
+		if b.Len() > 0 {
+			b.WriteString("\n\n")
+		}
+		b.WriteString(r)
+	}
+	if b.Len() > 0 {
+		b.WriteString("\n\n")
+	}
+	b.WriteString(m.render(submit))
+
+	return b.String()
+}
+
 func (m *Model) render(i int) string {
-	set := func(b bool) {
+	var extra string
+	var title string
+	changed := func(b bool) {
 		if b {
 			m.inputs[i].TextStyle = successStyle
 		} else {
+			extra = disabledStyle.Strikethrough(false).Render("※ ")
 			m.inputs[i].TextStyle = normalStyle
 		}
 	}
 
 	switch i {
 	case serverURL:
+		title = "Server URL"
 		if m.config.Server == m.inputs[i].Value() {
 			if urlValidator(m.config.Server) != nil {
 				m.inputs[i].TextStyle = errorStyle.Italic(true)
 			} else {
-				set(true)
+				changed(true)
 			}
 		} else {
-			set(false)
+			changed(false)
 		}
-	case username:
-		if m.config.Username == m.inputs[i].Value() {
-			if m.config.server.ValidUser(m.config.Username) != nil {
+	case token:
+		title = "Token"
+		if m.config.Token == m.inputs[i].Value() {
+			if m.config.server.ValidToken(m.config.Token) != nil {
 				m.inputs[i].TextStyle = errorStyle.Italic(true)
 			} else {
-				set(true)
+				changed(true)
 			}
 		} else {
-			set(false)
+			changed(false)
 		}
+	case username:
+		title = "Username"
+		m.inputs[i].TextStyle = disabledStyle
 	case path:
-		set(m.config.Path == m.inputs[i].Value())
+		title = "Path"
+		changed(m.config.Path == m.inputs[i].Value())
 	case submit:
 		if m.focused == len(m.inputs) {
-			return inputStyle.Underline(true).Bold(true).Render("Continue ->")
+			return submitStyle.Render("Press Enter to save ->")
 		} else {
 			return continueStyle.Render("Continue ->")
 		}
+	default:
+		return errorStyle.Bold(true).Render("Unknown input")
 	}
 
-	return m.inputs[i].View()
+	if extra != "" {
+		return extra + inputStyle.Width(64).Render(title) + "\n   " + m.inputs[i].View()
+	} else {
+		return "  " + inputStyle.Width(64).Render(title) + "\n   " + m.inputs[i].View()
+	}
 }
 
 func urlValidator(s string) error {
 	_, err := url.Parse(s)
 	return err
+}
+
+func (m *Model) discard() tea.Cmd {
+	for i := range m.inputs {
+		m.inputs[i].SetValue(m.inputs[i].Placeholder)
+	}
+	return nil
 }
 
 func (m *Model) save() tea.Cmd {
@@ -227,19 +299,34 @@ func (m *Model) save() tea.Cmd {
 			if m.config.Username != value {
 				cmds = append(cmds, func() tea.Msg {
 					if err := m.config.SetUsername(value); err != nil {
+						m.inputs[i].TextStyle = errorStyle.Italic(true)
 						return err
 					}
-					m.inputs[username].Placeholder = value
+					m.inputs[i].Placeholder = value
 					return message.UsernameSet(value)
+				})
+			}
+		case token:
+			if m.config.Token != value {
+				cmds = append(cmds, func() tea.Msg {
+					if err := m.config.SetToken(value); err != nil {
+						return err
+					}
+					m.inputs[i].Placeholder = value
+					return message.TokenSet(value)
 				})
 			}
 		case path:
 			if m.config.Path != value {
-				cmds = append(cmds, func() tea.Msg {
-					m.config.SetPath(value)
-					m.inputs[path].Placeholder = value
-					return message.PathSet(value)
-				})
+				patterns, err := lib.ExpandPatterns(value)
+				if err != nil {
+					m.inputs[i].TextStyle = errorStyle.Italic(true)
+					cmds = append(cmds, message.Cmd(err))
+					continue
+				}
+				m.config.SetPath(value)
+				m.inputs[i].Placeholder = value
+				cmds = append(cmds, message.Cmd(message.PathSet(value)), message.Cmd(message.PatternsSet(patterns)))
 			}
 		case serverURL:
 			if m.config.Server != value {
@@ -247,7 +334,7 @@ func (m *Model) save() tea.Cmd {
 					if err := m.config.SetServer(value); err != nil {
 						return err
 					}
-					m.inputs[serverURL].Placeholder = value
+					m.inputs[i].Placeholder = value
 					return message.ServerSet(value)
 				})
 			}
@@ -257,7 +344,7 @@ func (m *Model) save() tea.Cmd {
 	if len(cmds) == 0 {
 		return nil
 	}
-	// fire all those commands; you'll get one Msg per change
+
 	return tea.Batch(cmds...)
 }
 
@@ -283,8 +370,21 @@ func (c *Config) SetUsername(username string) error {
 		return fmt.Errorf("username %q not found in remote userlist: %w", username, err)
 	}
 
-	if err := os.WriteFile("username.txt", []byte(username), 0644); err != nil {
-		return err
+	if err := lib.EncodeToFile(lib.ConfigPath, c); err != nil {
+		return fmt.Errorf("error writing config file: %w", err)
+	}
+
+	return nil
+}
+
+func (c *Config) SetToken(username string) error {
+	c.Username = username
+	if err := c.server.ValidToken(username); err != nil {
+		return fmt.Errorf("token %q is not valid: %w", username, err)
+	}
+
+	if err := lib.EncodeToFile(lib.ConfigPath, c); err != nil {
+		return fmt.Errorf("error writing config file: %w", err)
 	}
 
 	return nil
@@ -301,6 +401,9 @@ func (c *Config) SetServer(link string) error {
 }
 
 func (c *Config) SetRoom(room string) {
+	if c.LastWorld != "Unknown" && c.LastWorld != room {
+		log.Printf("World changed to %s", room)
+	}
 	c.LastWorld = room
 }
 

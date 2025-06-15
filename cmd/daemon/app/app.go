@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"os"
@@ -16,6 +17,7 @@ import (
 	"vrc-moments/cmd/daemon/components/upload"
 	lib "vrc-moments/pkg"
 	"vrc-moments/pkg/api"
+	"vrc-moments/pkg/api/vrpaws"
 )
 
 type Model struct {
@@ -37,18 +39,8 @@ type screen struct {
 	Height int
 }
 
-func NewModel(path string) Model {
-	config := &settings.Config{
-		Username:  "Unknown",
-		Path:      path,
-		Server:    "Unset",
-		LastWorld: "Unknown",
-	}
-
-	server := api.NewLocal(&url.URL{
-		Scheme: "https",
-		Host:   config.Server,
-	})
+func NewModel(u *url.URL, config *settings.Config) Model {
+	server := vrpaws.NewVRPaws(u, context.Background(), config.Token)
 	watcher := lib.NewWatcher(
 		[]string{config.Path},
 		time.NewTicker(30*time.Second),

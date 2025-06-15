@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"path"
 	"time"
 
@@ -205,26 +204,4 @@ func (s *VRPaws) getUploadToken(accessToken string) (string, error) {
 	}
 
 	return token.URL, nil
-}
-
-func (s *VRPaws) ValidUser(username string) error {
-	valid, err := s.usernameCache.Get(username)
-	if err != nil {
-		return fmt.Errorf("could not determine if user %q is valid: %w", username, err)
-	}
-	if !valid {
-		return fmt.Errorf("user %q is not valid", username)
-	}
-
-	return errors.New("not yet implemented")
-}
-
-func (s *VRPaws) SetRemote(remote string) error {
-	parsed, err := url.Parse(remote)
-	if err != nil {
-		return err
-	}
-	s.remote = parsed
-
-	return nil
 }

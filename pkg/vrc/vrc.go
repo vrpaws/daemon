@@ -10,32 +10,17 @@ import (
 	"slices"
 	"strings"
 	"time"
-
-	lib "vrc-moments/pkg"
 )
 
 var DefaultLogPath = filepath.Join(os.Getenv("AppData"), "..", "LocalLow", "VRChat", "VRChat")
 
 func GetUsername(logPath string) ([]string, error) {
-	if lib.FileExists("username.txt") {
-		user, err := os.ReadFile("username.txt")
-		if err == nil {
-			usernames := strings.Split(string(user), "\n")
-			lib.Map(usernames, strings.TrimSpace)
-			return usernames, nil
-		}
-	}
-
 	if logPath == "" {
 		logPath = DefaultLogPath
 	}
 
 	username, err := ExtractUsernameFromLogs(logPath)
 	if err == nil {
-		err := os.WriteFile("username.txt", []byte(username), 0644)
-		if err != nil {
-			return nil, fmt.Errorf("failed to write username to username.txt: %w", err)
-		}
 		return []string{username}, nil
 	}
 

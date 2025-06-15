@@ -20,6 +20,7 @@ import (
 
 type Server interface {
 	ValidUser(string) error // integrate with flight.Cache to prevent api spam
+	ValidToken(string) error
 	Upload(context.Context, UploadPayload) error
 	SetRemote(string) error
 }

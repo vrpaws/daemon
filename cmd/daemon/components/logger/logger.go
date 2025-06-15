@@ -7,6 +7,7 @@ import (
 	"log"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -17,23 +18,28 @@ var (
 	spinnerStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("63"))
 	errorStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#EB4034")).Bold(true).SetString("ERROR")
 	helpStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Margin(1, 0)
+	greyStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 	dotStyle      = helpStyle.UnsetMargins()
 	durationStyle = dotStyle
 	appStyle      = lipgloss.NewStyle().Margin(1, 2, 0, 2)
 	scrollStyle   = helpStyle.Margin(0, 0, 1)
 )
 
-type Message struct {
+type Message string // sending Message will only append to the logger but not the log file
+
+// MessageTime is like Message, but with an optional Time
+type MessageTime struct {
 	Message string
+	Time    time.Time
 }
 
-func (r *Message) String(maxWidth int) (string, int) {
-	if len(r.Message) <= maxWidth {
-		return r.Message, 1
+func (r Message) String(maxWidth int) (string, int) {
+	if len(r) <= maxWidth {
+		return string(r), 1
 	}
 
 	var s strings.Builder
-	words := strings.Fields(r.Message)
+	words := strings.Fields(string(r))
 	currentLineLength := 0
 
 	var height int
@@ -74,7 +80,7 @@ func (r *Message) String(maxWidth int) (string, int) {
 }
 
 func (m *Logger) Write(p []byte) (n int, err error) {
-	_, _ = m.Update(Message{Message: string(p)})
+	_, _ = m.Update(Message(p))
 	return len(p), nil
 }
 
@@ -156,6 +162,12 @@ func (m *Logger) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case Message:
 		m.messages = append(m.messages[1:], msg)
 		return m, nil
+	case MessageTime:
+		if msg.Time.IsZero() {
+			msg.Time = time.Now()
+		}
+		m.messages = append(m.messages[1:], Message(greyStyle.Render(msg.Time.Format("2006/01/02 15:04:05 "))+msg.Message))
+		return m, nil
 	case spinner.TickMsg:
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
@@ -195,6 +207,9 @@ func (m *Logger) View() string {
 
 	for _, line := range m.getVisibleLogs() {
 		s.WriteString(line)
+		if len(line) > 0 && line[len(line)-1] != '\n' {
+			s.WriteString("\n")
+		}
 	}
 
 	if !m.quitting {
@@ -202,7 +217,7 @@ func (m *Logger) View() string {
 	}
 
 	if m.quitting {
-		s.WriteString("Quitting...\n")
+		s.WriteString("\nQuitting...\n")
 	}
 
 	var scroll strings.Builder
@@ -233,7 +248,7 @@ func (m *Logger) getVisibleLogs() []string {
 	logs := make([]string, 0, m.maxHeight)
 	messages := slices.Clone(m.messages)
 	slices.Reverse(messages)
-	m.last = slices.Index(messages, Message{})
+	m.last = slices.Index(messages, "")
 	if m.last != -1 {
 		messages = messages[:m.last]
 	}
