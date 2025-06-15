@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -35,10 +36,8 @@ func ExpandPatterns(matchDirs, matchFiles bool, patterns ...string) ([]string, e
 				}
 				// skip whole subtree if this dir is recursive-excluded
 				if fi.IsDir() {
-					for _, d := range pm.exclRecursive {
-						if fp == d {
-							return filepath.SkipDir
-						}
+					if slices.Contains(pm.exclRecursive, fp) {
+						return filepath.SkipDir
 					}
 				}
 				ok, err := pm.Matches(fp)
@@ -144,19 +143,15 @@ func (pm *PatternMatcher) Matches(path string) (bool, error) {
 		if !pm.matchDirs {
 			return false, nil
 		}
-		for _, d := range pm.exclDirOnly {
-			if path == d {
-				return false, nil
-			}
+		if slices.Contains(pm.exclDirOnly, path) {
+			return false, nil
 		}
 	} else {
 		if !pm.matchFiles {
 			return false, nil
 		}
-		for _, d := range pm.exclFilesLevel {
-			if filepath.Dir(path) == d {
-				return false, nil
-			}
+		if slices.Contains(pm.exclFilesLevel, filepath.Dir(path)) {
+			return false, nil
 		}
 	}
 
