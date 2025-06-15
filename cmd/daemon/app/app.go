@@ -53,7 +53,7 @@ func NewModel(u *url.URL, config *settings.Config) Model {
 
 	watcher := lib.NewWatcher(
 		patterns,
-		10*time.Second,
+		5*time.Second,
 		nil,
 	)
 
