@@ -23,14 +23,14 @@ type Watcher struct {
 	work     func(*fsnotify.Event)
 	cooldown time.Duration
 
-	context  *contextWithWatcher
-	mu       sync.Mutex
-	debounce *time.Timer
-	watcher  *fsnotify.Watcher
+	context *contextWithWatcher
+	mu      sync.Mutex
+	timers  map[string]*time.Timer
+	watcher *fsnotify.Watcher
 }
 
 func NewWatcher(paths []string, ticker *time.Ticker, debounce time.Duration, work func(*fsnotify.Event)) *Watcher {
-	return &Watcher{paths: paths, ticker: ticker, cooldown: debounce, work: work}
+	return &Watcher{paths: paths, ticker: ticker, cooldown: debounce, work: work, timers: make(map[string]*time.Timer)}
 }
 
 func (w *Watcher) SetPaths(paths []string) error {
@@ -174,14 +174,15 @@ func (w *Watcher) scheduleDebouncedWork(event *fsnotify.Event) {
 	}
 
 	// if there's already a timer pending, stop it
-	if w.debounce != nil {
-		w.debounce.Stop()
+	if t, ok := w.timers[event.Name]; ok {
+		t.Stop()
 	}
 
 	// start a new one
-	w.debounce = time.AfterFunc(w.cooldown, func() {
+	w.timers[event.Name] = time.AfterFunc(w.cooldown, func() {
 		w.mu.Lock()
 		defer w.mu.Unlock()
 		w.work(event)
+		delete(w.timers, event.Name)
 	})
 }
