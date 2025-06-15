@@ -34,7 +34,7 @@ type MessageTime struct {
 }
 
 func (r Message) String(maxWidth int) (string, int) {
-	if len(r) <= maxWidth {
+	if lipgloss.Width(string(r)) <= maxWidth {
 		return string(r), 1
 	}
 
@@ -42,10 +42,15 @@ func (r Message) String(maxWidth int) (string, int) {
 	words := strings.Fields(string(r))
 	currentLineLength := 0
 
+	widths := make([]int, len(words))
+	for i, w := range words {
+		widths[i] = lipgloss.Width(w)
+	}
+
 	var height int
 	var writtenNewline bool
 	for i, word := range words {
-		if currentLineLength+len(word) > maxWidth {
+		if currentLineLength+widths[i] > maxWidth {
 			s.WriteString("\n")
 			currentLineLength = 0
 			height++
@@ -60,10 +65,10 @@ func (r Message) String(maxWidth int) (string, int) {
 		// Write the word
 		s.WriteString(word)
 		writtenNewline = false
-		currentLineLength += len(word)
+		currentLineLength += widths[i]
 
 		// If we're not at the last word, and the next word will fit in the same line, continue
-		if i < len(words)-1 && currentLineLength+len(words[i+1]) > maxWidth {
+		if i < len(widths)-1 && currentLineLength+widths[i+1] > maxWidth {
 			s.WriteString("\n")
 			writtenNewline = true
 			currentLineLength = 0
