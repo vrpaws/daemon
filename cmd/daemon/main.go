@@ -24,11 +24,11 @@ func main() {
 
 	config.Username = cmp.Or(os.Getenv("USERNAME"), config.Username, "Unknown")
 	config.Token = cmp.Or(os.Getenv("TOKEN"), config.Token)
-	config.Path = cmp.Or(os.Getenv("PATH"), config.Path, "~/Pictures/VRChat/***.png")
+	config.Path = cmp.Or(os.Getenv("PATH"), config.Path, "~/Pictures/VRChat")
 	config.LastWorld = cmp.Or(config.LastWorld, "Unknown")
 
 	if errors.Is(err, os.ErrNotExist) {
-		err = lib.EncodeToFile(lib.ConfigPath, config)
+		err = config.Save()
 	}
 
 	remote := getRemote(config)
@@ -39,6 +39,7 @@ func main() {
 	program := model.Run()
 	defer lib.LogOutput(&model)()
 
+	program.Send(program)
 	program.Send(err)
 	program.Send(usernameErr)
 	program.Send(roomErr)

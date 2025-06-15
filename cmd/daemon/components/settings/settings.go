@@ -28,6 +28,7 @@ type Model struct {
 
 type Config struct {
 	Username  string `json:"username,omitempty"`
+	UserID    string `json:"user_id,omitempty"`
 	Token     string `json:"token,omitempty"`
 	Path      string `json:"path,omitempty"`
 	Server    string `json:"server,omitempty"`
@@ -318,7 +319,7 @@ func (m *Model) save() tea.Cmd {
 			}
 		case path:
 			if m.config.Path != value {
-				patterns, err := lib.ExpandPatterns(value)
+				patterns, err := lib.ExpandPatterns(true, false, value)
 				if err != nil {
 					m.inputs[i].TextStyle = errorStyle.Italic(true)
 					cmds = append(cmds, message.Cmd(err))
@@ -360,6 +361,10 @@ func (m *Model) prevInput() {
 	m.focused = (a%b + b) % b
 }
 
+func (c *Config) Save() error {
+	return lib.EncodeToFile(lib.ConfigPath, c)
+}
+
 func (c *Config) SetPath(path string) {
 	c.Path = path
 }
@@ -370,7 +375,7 @@ func (c *Config) SetUsername(username string) error {
 		return fmt.Errorf("username %q not found in remote userlist: %w", username, err)
 	}
 
-	if err := lib.EncodeToFile(lib.ConfigPath, c); err != nil {
+	if err := c.Save(); err != nil {
 		return fmt.Errorf("error writing config file: %w", err)
 	}
 
@@ -383,7 +388,7 @@ func (c *Config) SetToken(username string) error {
 		return fmt.Errorf("token %q is not valid: %w", username, err)
 	}
 
-	if err := lib.EncodeToFile(lib.ConfigPath, c); err != nil {
+	if err := c.Save(); err != nil {
 		return fmt.Errorf("error writing config file: %w", err)
 	}
 

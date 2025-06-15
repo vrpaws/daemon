@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"log"
 	"net/url"
 	"os"
 	"time"
@@ -25,7 +26,9 @@ type Model struct {
 
 	config  *settings.Config
 	watcher *lib.Watcher
-	server  api.Server
+
+	ctx    context.Context
+	server api.Server
 
 	tabs     tea.Model
 	logger   tea.Model
@@ -40,11 +43,17 @@ type screen struct {
 }
 
 func NewModel(u *url.URL, config *settings.Config) Model {
-	server := vrpaws.NewVRPaws(u, context.Background(), config.Token)
+	ctx := context.Background()
+	server := vrpaws.NewVRPaws(u, ctx, config.Token)
+
+	patterns, err := lib.ExpandPatterns(true, false, config.Path)
+	if err != nil || len(patterns) == 0 {
+		log.Fatalf("failed to expand patterns: %v", err)
+	}
+
 	watcher := lib.NewWatcher(
-		[]string{config.Path},
-		time.NewTicker(30*time.Second),
-		5*time.Second,
+		patterns,
+		10*time.Second,
 		nil,
 	)
 
@@ -52,14 +61,13 @@ func NewModel(u *url.URL, config *settings.Config) Model {
 		config:  config,
 		watcher: watcher,
 		server:  server,
-
 		tabs: tabs.New([]string{
 			"Logger",
 			"Upload",
 			"Settings",
 		}, config.Username),
 		logger:   logger.NewLogger(),
-		uploader: upload.NewModel(watcher, server),
+		uploader: upload.NewModel(watcher, ctx, config, server),
 		settings: settings.New(config, server),
 		footer: footer.New([]*string{
 			&config.LastWorld,

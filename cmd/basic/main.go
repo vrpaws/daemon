@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	files, err := lib.ExpandPatterns("~/Pictures/VRChat/***.png")
+	files, err := lib.ExpandPatterns(false, true, "~/Pictures/VRChat/***.png")
 	if err != nil {
 		log.Fatal(err)
 	}

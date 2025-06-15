@@ -4,13 +4,15 @@ import (
 	"github.com/charmbracelet/bubbles/cursor"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/fsnotify/fsnotify"
 
 	"vrc-moments/cmd/daemon/components/logger"
 	"vrc-moments/cmd/daemon/components/message"
+	"vrc-moments/pkg/api"
 )
 
 func (m *Model) Init() tea.Cmd {
-	return tea.Batch(m.logger.Init(), m.tabs.Init(), m.settings.Init(), tea.SetWindowTitle("VRC Moments"))
+	return tea.Batch(m.logger.Init(), m.tabs.Init(), m.settings.Init(), m.uploader.Init(), tea.SetWindowTitle("VRC Moments"))
 }
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -34,6 +36,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.propagate(msg, &m.settings)
 	case message.UsernameSet:
 		return m.propagate(msg, &m.settings, &m.tabs)
+	case api.UploadPayload, *fsnotify.Event:
+		return m.propagate(msg, &m.uploader)
 	}
 
 	return m.propagate(msg)
@@ -46,7 +50,7 @@ func (m *Model) Write(p []byte) (n int, err error) {
 
 func (m *Model) propagate(msg tea.Msg, models ...*tea.Model) (tea.Model, tea.Cmd) {
 	if len(models) == 0 {
-		models = []*tea.Model{&m.logger, &m.tabs, &m.settings, &m.footer}
+		models = []*tea.Model{&m.logger, &m.tabs, &m.settings, &m.footer, &m.uploader}
 	}
 
 	cmds := make([]tea.Cmd, 0, len(models))

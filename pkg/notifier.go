@@ -19,7 +19,6 @@ type contextWithWatcher struct {
 
 type Watcher struct {
 	paths    []string
-	ticker   *time.Ticker // should not be used after
 	work     func(*fsnotify.Event)
 	cooldown time.Duration
 
@@ -29,8 +28,8 @@ type Watcher struct {
 	watcher *fsnotify.Watcher
 }
 
-func NewWatcher(paths []string, ticker *time.Ticker, debounce time.Duration, work func(*fsnotify.Event)) *Watcher {
-	return &Watcher{paths: paths, ticker: ticker, cooldown: debounce, work: work, timers: make(map[string]*time.Timer)}
+func NewWatcher(paths []string, debounce time.Duration, work func(*fsnotify.Event)) *Watcher {
+	return &Watcher{paths: paths, cooldown: debounce, work: work, timers: make(map[string]*time.Timer)}
 }
 
 func (w *Watcher) SetPaths(paths []string) error {
@@ -102,13 +101,6 @@ func (w *Watcher) Watch() error {
 		return errors.New("watcher: no path")
 	}
 
-	var ticker time.Ticker
-	if w.ticker != nil {
-		ticker = *w.ticker
-	} else {
-		ticker = *time.NewTicker(30 * time.Second)
-	}
-
 	if w.cooldown == 0 {
 		w.cooldown = 5 * time.Second
 	}
@@ -135,7 +127,6 @@ func (w *Watcher) Watch() error {
 	ctx, done := context.WithCancel(context.Background())
 	w.context = &contextWithWatcher{ctx, done}
 	go func() {
-		defer ticker.Stop()
 		for {
 			select {
 			case <-ctx.Done():
@@ -153,15 +144,15 @@ func (w *Watcher) Watch() error {
 					return
 				}
 				log.Println("Error:", err)
-			case <-ticker.C:
-				w.mu.Lock()
-				w.work(nil)
-				w.mu.Unlock()
 			}
 		}
 	}()
 
 	return nil
+}
+
+func (w *Watcher) Paths() []string {
+	return w.paths
 }
 
 func (w *Watcher) scheduleDebouncedWork(event *fsnotify.Event) {
