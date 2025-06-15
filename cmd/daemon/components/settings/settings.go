@@ -27,12 +27,12 @@ type Model struct {
 }
 
 type Config struct {
-	Username  string `json:"username,omitempty"`
-	UserID    string `json:"user_id,omitempty"`
-	Token     string `json:"token,omitempty"`
-	Path      string `json:"path,omitempty"`
-	Server    string `json:"server,omitempty"`
-	LastWorld string `json:"last_world,omitempty"`
+	Username  string `json:"username"`
+	UserID    string `json:"user_id"`
+	Token     string `json:"token"`
+	Path      string `json:"path"`
+	Server    string `json:"server"`
+	LastWorld string `json:"last_world"`
 
 	server api.Server // some server
 }
