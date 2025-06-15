@@ -4,6 +4,7 @@ package logger
 // from outside the program using Program.Send(Msg).
 
 import (
+	"fmt"
 	"log"
 	"slices"
 	"strings"
@@ -12,6 +13,8 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+
+	"vrc-moments/pkg/gradient"
 )
 
 var (
@@ -25,21 +28,158 @@ var (
 	scrollStyle   = helpStyle.Margin(0, 0, 1)
 )
 
+type Renderable interface {
+	String(width int) (text string, height int)
+	Len() int
+}
+
+type Concat struct {
+	Items     []Renderable
+	Separator string
+}
+
+func (c Concat) String(maxWidth int) (string, int) {
+	itemCount := len(c.Items)
+	// non-nil, empty slice of rows; pre-allocate capacity = number of items
+	lines := make([][]string, 0, itemCount)
+	maxHeight := 0
+
+	for _, renderable := range c.Items {
+		text, height := renderable.String(maxWidth)
+		if height > maxHeight {
+			maxHeight = height
+		}
+
+		// split into lines, trim trailing newline
+		textLines := strings.Split(strings.TrimRight(text, "\n"), "\n")
+
+		// pad textLines up to height with empty strings
+		for len(textLines) < height {
+			textLines = append(textLines, "")
+		}
+
+		// ensure we have enough rows in lines
+		for len(lines) < height {
+			// each row starts as an empty slice of parts, capacity = itemCount
+			lines = append(lines, make([]string, 0, itemCount))
+		}
+
+		// append this renderable's i-th line into row i
+		for i := 0; i < height; i++ {
+			lines[i] = append(lines[i], textLines[i])
+		}
+	}
+
+	// in case some items were shorter than maxHeight,
+	// ensure we have exactly maxHeight rows
+	for len(lines) < maxHeight {
+		lines = append(lines, make([]string, 0, itemCount))
+	}
+
+	// build final string, joining each row with Separator
+	var sb strings.Builder
+	for _, parts := range lines {
+		sb.WriteString(strings.Join(parts, c.Separator))
+		sb.WriteByte('\n')
+	}
+
+	return sb.String(), maxHeight
+}
+
+func (c Concat) Len() int {
+	for _, renderable := range c.Items {
+		if renderable == nil {
+			continue
+		}
+		if renderable.Len() > 0 {
+			return renderable.Len()
+		}
+	}
+
+	return 0
+}
+
 type Message string // sending Message will only append to the logger but not the log file
 
 // MessageTime is like Message, but with an optional Time
 type MessageTime struct {
 	Message string
+	Width   int
 	Time    time.Time
 }
 
+func NewMessageTime(message string) *MessageTime {
+	return &MessageTime{
+		Message: message,
+		Width:   lipgloss.Width(message),
+		Time:    time.Now(),
+	}
+}
+
+func NewMessageTimef(format string, a ...any) *MessageTime {
+	message := fmt.Sprintf(format, a...)
+	return &MessageTime{
+		Message: message,
+		Width:   lipgloss.Width(message),
+		Time:    time.Now(),
+	}
+}
+
+func (r *MessageTime) String(maxWidth int) (string, int) {
+	return render(greyStyle.Render(r.Time.Format("2006/01/02 15:04:05 "))+r.Message, maxWidth)
+}
+
+func (r *MessageTime) Len() int {
+	return r.Width
+}
+
 func (r Message) String(maxWidth int) (string, int) {
-	if lipgloss.Width(string(r)) <= maxWidth {
-		return string(r), 1
+	return render(string(r), maxWidth)
+}
+
+func (r Message) Len() int {
+	return lipgloss.Width(string(r))
+}
+
+type GradientString struct {
+	Message string
+	Width   int
+	Colors  []string
+}
+
+const fps = float64(60)
+
+func NewGradientString(message string, duration time.Duration, colors ...string) *GradientString {
+	str := &GradientString{
+		Message: message,
+		Width:   lipgloss.Width(message),
+		Colors:  colors,
+	}
+	frames := int(duration.Nanoseconds() * int64(fps) / int64(time.Second))
+	steps := min(max(frames, 5), 120)
+	gradient.Global.New(str.Message, steps, str.Colors...)
+	return str
+}
+
+func (r *GradientString) String(maxWidth int) (string, int) {
+	return render(gradient.Global.RenderCurrent(r.Message), maxWidth)
+}
+
+func (r *GradientString) Advance() {
+	gradient.Global.Advance(r.Message)
+}
+
+func (r *GradientString) Len() int {
+	return r.Width
+}
+
+func render(text string, maxWidth int) (string, int) {
+	if lipgloss.Width(text) <= maxWidth {
+		return text, 1
 	}
 
 	var s strings.Builder
-	words := strings.Fields(string(r))
+	words := strings.Fields(text)
 	currentLineLength := 0
 
 	widths := make([]int, len(words))
@@ -91,7 +231,7 @@ func (m *Logger) Write(p []byte) (n int, err error) {
 
 type Logger struct {
 	spinner  spinner.Model
-	messages []Message
+	messages []Renderable
 	offset   int
 	quitting bool
 
@@ -110,7 +250,7 @@ func NewLogger() *Logger {
 		s.Style = spinnerStyle
 		globalLogger = &Logger{
 			spinner:  s,
-			messages: make([]Message, numLastResults),
+			messages: make([]Renderable, numLastResults),
 			last:     -1,
 		}
 	}
@@ -164,18 +304,24 @@ func (m *Logger) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		default:
 			return m, nil
 		}
-	case Message:
+	case Renderable:
 		m.messages = append(m.messages[1:], msg)
-		return m, nil
-	case MessageTime:
-		if msg.Time.IsZero() {
-			msg.Time = time.Now()
-		}
-		m.messages = append(m.messages[1:], Message(greyStyle.Render(msg.Time.Format("2006/01/02 15:04:05 "))+msg.Message))
 		return m, nil
 	case spinner.TickMsg:
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
+		for _, renderable := range m.messages {
+			switch renderable := renderable.(type) {
+			case Concat:
+				for _, item := range renderable.Items {
+					if g, ok := item.(*GradientString); ok {
+						g.Advance()
+					}
+				}
+			case *GradientString:
+				renderable.Advance()
+			}
+		}
 		return m, cmd
 	default:
 		return m, nil
@@ -253,7 +399,12 @@ func (m *Logger) getVisibleLogs() []string {
 	logs := make([]string, 0, m.maxHeight)
 	messages := slices.Clone(m.messages)
 	slices.Reverse(messages)
-	m.last = slices.Index(messages, "")
+	for i, message := range messages {
+		if message == nil || message.Len() == 0 {
+			m.last = i
+			break
+		}
+	}
 	if m.last != -1 {
 		messages = messages[:m.last]
 	}

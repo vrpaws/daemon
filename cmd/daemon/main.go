@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"time"
 
 	_ "github.com/joho/godotenv/autoload"
 
@@ -13,6 +14,7 @@ import (
 	"vrc-moments/cmd/daemon/components/logger"
 	"vrc-moments/cmd/daemon/components/settings"
 	lib "vrc-moments/pkg"
+	"vrc-moments/pkg/gradient"
 	"vrc-moments/pkg/vrc"
 )
 
@@ -43,10 +45,16 @@ func main() {
 	program.Send(err)
 	program.Send(usernameErr)
 	program.Send(roomErr)
-	program.Send(logger.MessageTime{Message: "Started up!"})
+	program.Send(logger.NewMessageTime("Started up!"))
 	if config.Username != "Unknown" {
-		username := lib.GradientText(config.Username, "#00E2FD", "#6D90FA", "#FF22EE", "#FF8D7A", "#FFC851")
-		program.Send(logger.MessageTime{Message: "Hello " + username})
+		program.Send(logger.Concat{
+			Items: []logger.Renderable{
+				logger.NewMessageTime("Hello "),
+				logger.NewGradientString(config.Username, 250*time.Millisecond, gradient.PastelColors...),
+				logger.Message("!"),
+			},
+			Separator: "",
+		})
 	}
 
 	program.Wait()

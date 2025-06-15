@@ -12,9 +12,6 @@ import (
 	"strings"
 	"time"
 	"unicode"
-
-	"github.com/charmbracelet/lipgloss"
-	"github.com/lucasb-eyer/go-colorful"
 )
 
 var ConfigDirectory string
@@ -118,55 +115,6 @@ func DecodeFromFile[T any](path string) (T, error) {
 
 func RemoveExtension(filename string) string {
 	return strings.TrimSuffix(filename, path.Ext(filename))
-}
-
-func GradientText(s string, hexColors ...string) string {
-	switch len(hexColors) {
-	case 0:
-		return s
-	case 1:
-		return lipgloss.NewStyle().Foreground(lipgloss.Color(hexColors[0])).Render(s)
-	}
-
-	runes := []rune(s)
-	total := len(runes)
-	if total == 0 {
-		return s
-	}
-
-	colors := make([]colorful.Color, len(hexColors))
-	for i, hex := range hexColors {
-		c, err := colorful.Hex(hex)
-		if err != nil {
-			return s
-		}
-		colors[i] = c
-	}
-
-	segments := len(colors) - 1
-	var result strings.Builder
-
-	for i, r := range runes {
-		var ratio float64
-		if total > 1 {
-			ratio = float64(i) / float64(total-1)
-		} else {
-			ratio = 0
-		}
-
-		segmentIndex := int(ratio * float64(segments))
-		if segmentIndex >= segments {
-			segmentIndex = segments - 1
-		}
-		localRatio := (ratio * float64(segments)) - float64(segmentIndex)
-		c := colors[segmentIndex].BlendLab(colors[segmentIndex+1], localRatio)
-
-		hex := c.Clamped().Hex()
-		styled := lipgloss.NewStyle().Foreground(lipgloss.Color(hex)).Render(string(r))
-		result.WriteString(styled)
-	}
-
-	return result.String()
 }
 
 func LogOutput(writer io.Writer) func() {

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/fsnotify/fsnotify"
@@ -18,6 +19,7 @@ import (
 	lib "vrc-moments/pkg"
 	"vrc-moments/pkg/api"
 	"vrc-moments/pkg/flight"
+	"vrc-moments/pkg/gradient"
 	"vrc-moments/pkg/worker"
 )
 
@@ -114,7 +116,7 @@ func (m *Uploader) async(event *fsnotify.Event) func() tea.Msg {
 
 		dir, file := filepath.Split(event.Name)
 		prefix := strings.TrimPrefix(dir, filepath.Dir(dir))
-		m.program.Send(logger.MessageTime{Message: fmt.Sprintf("A new photo was taken at %s", filepath.Join(prefix, file))})
+		m.program.Send(logger.NewMessageTimef("A new photo was taken at %s", filepath.Join(prefix, file)))
 		return <-m.queue.Promise(event)
 	}
 }
@@ -144,13 +146,19 @@ func (m *Uploader) upload(event *fsnotify.Event) (string, error) {
 		}
 	}
 
-	m.program.Send(logger.MessageTime{Message: fmt.Sprintf("Trying to upload %s...", payload.File.Filename)})
+	m.program.Send(logger.NewMessageTimef("Trying to upload %s...", payload.File.Filename))
 	err = m.server.Upload(m.ctx, payload)
 	if err != nil {
 		return "", fmt.Errorf("uploading %s: %w", payload.File.Filename, err)
 	} else {
-		gradient := lib.GradientText(payload.File.Filename, "#00E2FD", "#6D90FA", "#FF22EE", "#FF8D7A", "#FFC851")
-		m.program.Send(logger.MessageTime{Message: fmt.Sprintf("Sucessfully uploaded %s!", gradient)})
+		m.program.Send(logger.Concat{
+			Items: []logger.Renderable{
+				logger.NewMessageTime("Successfully uploaded "),
+				logger.NewGradientString(payload.File.Filename, time.Second, gradient.PastelColors...),
+				logger.Message("!"),
+			},
+			Separator: "",
+		})
 		return payload.File.SHA256, nil
 	}
 }

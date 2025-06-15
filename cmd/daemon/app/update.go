@@ -38,6 +38,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.propagate(msg, &m.settings, &m.tabs)
 	case api.UploadPayload, *fsnotify.Event:
 		return m.propagate(msg, &m.uploader)
+	case logger.Renderable:
+		return m.propagate(msg, &m.logger)
 	}
 
 	return m.propagate(msg)
