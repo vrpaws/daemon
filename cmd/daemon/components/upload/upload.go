@@ -115,8 +115,8 @@ func (m *Uploader) async(event *fsnotify.Event) func() tea.Msg {
 		}
 
 		dir, file := filepath.Split(event.Name)
-		prefix := strings.TrimPrefix(dir, filepath.Dir(dir))
-		m.program.Send(logger.NewMessageTimef("A new photo was taken at %s", filepath.Join(prefix, file)))
+		folder := filepath.Base(dir)
+		m.program.Send(logger.NewMessageTimef("A new photo was taken at %s", filepath.Join(folder, file)))
 		return <-m.queue.Promise(event)
 	}
 }
