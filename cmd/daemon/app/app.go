@@ -48,7 +48,7 @@ func NewModel(u *url.URL, config *settings.Config) Model {
 
 	patterns, err := lib.ExpandPatterns(true, false, config.Path)
 	if err != nil || len(patterns) == 0 {
-		log.Fatalf("failed to expand patterns: %v", err)
+		log.Fatalf("failed to expand patterns for %s: %v", config.Path, err)
 	}
 
 	watcher := lib.NewWatcher(

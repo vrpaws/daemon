@@ -22,9 +22,9 @@ func main() {
 		config = new(settings.Config)
 	}
 
-	config.Username = cmp.Or(os.Getenv("USERNAME"), config.Username, "Unknown")
-	config.Token = cmp.Or(os.Getenv("TOKEN"), config.Token)
-	config.Path = cmp.Or(os.Getenv("PATH"), config.Path, "~/Pictures/VRChat")
+	config.Username = cmp.Or(os.Getenv("VRPAWS_USERNAME"), config.Username, "Unknown")
+	config.Token = cmp.Or(os.Getenv("VRPAWS_TOKEN"), config.Token)
+	config.Path = cmp.Or(os.Getenv("VRPAWS_PATH"), config.Path, "~/Pictures/VRChat/***")
 	config.LastWorld = cmp.Or(config.LastWorld, "Unknown")
 
 	if errors.Is(err, os.ErrNotExist) {
@@ -53,7 +53,7 @@ func main() {
 }
 
 func getRemote(config *settings.Config) *url.URL {
-	server := os.Getenv("SERVER")
+	server := os.Getenv("VRPAWS_SERVER")
 	if server != "" {
 		parsed, err := url.Parse(server)
 		if err == nil {
@@ -63,7 +63,7 @@ func getRemote(config *settings.Config) *url.URL {
 	}
 
 	if config.Server != "" {
-		parsed, err := url.Parse(server)
+		parsed, err := url.Parse(config.Server)
 		if err == nil {
 			config.Server = parsed.String()
 			return parsed
