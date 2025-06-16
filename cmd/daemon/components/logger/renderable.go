@@ -142,6 +142,10 @@ func (c Concat) ShouldSave() bool {
 
 type Message string // sending Message will only append to the logger but not the log file
 
+func Messagef(format string, args ...any) Message {
+	return Message(fmt.Sprintf(format, args...))
+}
+
 // MessageTime is like Message, but with an optional Time
 type MessageTime struct {
 	Message string

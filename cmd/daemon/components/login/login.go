@@ -41,7 +41,7 @@ func New(config *settings.Config, server *vrpaws.Server) *Model {
 
 func (m *Model) Init() tea.Cmd {
 	return func() tea.Msg {
-		if m.me == nil && m.config.Token == "" {
+		if m.me == nil && m.config.Token == "" || m.config.Token == "Unset" {
 			return m.login()
 		}
 		return nil

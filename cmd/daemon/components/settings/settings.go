@@ -13,10 +13,12 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"vrc-moments/cmd/daemon/components/logger"
 	"vrc-moments/cmd/daemon/components/message"
 	lib "vrc-moments/pkg"
 	"vrc-moments/pkg/api"
 	"vrc-moments/pkg/api/vrpaws"
+	"vrc-moments/pkg/gradient"
 	"vrc-moments/pkg/vrc"
 )
 
@@ -142,7 +144,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.config.me = msg
 		m.config.Token = msg.User.AccessToken
 		m.inputs[token].SetValue(m.config.Token)
-		return m, message.Callback(m.config.Save)
+		return m, tea.Batch(
+			m.save(),
+			message.Callback(m.config.Save),
+			message.Cmd(logger.NewMessageTimef("Sucessfully logged in to vrpaws as %s", gradient.Static(msg.User.Username, gradient.BlueGreenYellow...))),
+		)
 	case message.UsernameSet:
 		m.inputs[username].SetValue(string(msg))
 		return m, m.save()

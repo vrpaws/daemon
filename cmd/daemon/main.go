@@ -50,7 +50,6 @@ func main() {
 
 	program.Send(logFile)
 	program.Send(program)
-	program.Send(message.LoginRequest{})
 	program.Send(saveError)
 	program.Send(usernameErr)
 	program.Send(roomErr)
