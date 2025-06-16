@@ -1,16 +1,15 @@
 package login
 
 import (
-	"bytes"
-	"context"
+	"embed"
 	_ "embed"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log"
 	"net"
 	"net/http"
 	"net/url"
-	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/pkg/browser"
@@ -21,22 +20,36 @@ import (
 	"vrc-moments/pkg/api/vrpaws"
 )
 
-//go:embed login.html
-var login []byte
+//go:embed all:login/out/*
+var login embed.FS
 
-//go:embed success.html
-var success []byte
+//go:embed all:success/out/*
+var success embed.FS
 
 type Model struct {
-	config  *settings.Config
-	server  api.Server[*vrpaws.Me, *vrpaws.UploadResponse]
-	program *tea.Program
-	local   *http.Server
-	me      *vrpaws.Me
+	config    *settings.Config
+	server    api.Server[*vrpaws.Me, *vrpaws.UploadResponse]
+	program   *tea.Program
+	local     *http.Server
+	loginFS   http.Handler
+	successFS http.Handler
+	me        *vrpaws.Me
 }
 
 func New(config *settings.Config, server *vrpaws.Server) *Model {
-	return &Model{config: config, server: server}
+	loginFS, err := fs.Sub(login, "login/out")
+	if err != nil {
+		log.Fatal(err)
+	}
+	loginHandler := http.FileServer(http.FS(loginFS))
+
+	successFS, err := fs.Sub(success, "success/out")
+	if err != nil {
+		log.Fatal(err)
+	}
+	successHandler := http.FileServer(http.FS(successFS))
+
+	return &Model{config: config, server: server, loginFS: loginHandler, successFS: successHandler}
 }
 
 func (m *Model) Init() tea.Cmd {
@@ -57,14 +70,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case *vrpaws.Me:
 		m.me = msg
-		return m, message.Callback(func() tea.Msg {
-			if m.local == nil {
-				return nil
-			}
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			return m.local.Shutdown(ctx)
-		})
+		return m, nil
 	}
 	return m, nil
 }
@@ -81,31 +87,21 @@ func (m *Model) login() tea.Msg {
 	addr := listener.Addr().String()
 	redirectURL := fmt.Sprintf("http://%s", addr)
 
-	page := bytes.ReplaceAll(login,
-		[]byte("{CALLBACK_URL}"),
-		[]byte(redirectURL),
-	)
-
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-
 		token := r.URL.Query().Get("access_token")
 		if token != "" {
-			w.Write(success)
-			go func() {
-				if user, err := m.server.ValidToken(token); err == nil {
-					m.program.Send(user)
-				} else {
-					m.program.Send(err)
-				}
-				m.program.Send(m.local.Close())
-			}()
-			return
-		}
+			if user, err := m.server.ValidToken(token); err == nil {
+				m.program.Send(user)
+			} else {
+				m.program.Send(err)
+			}
 
-		if _, err := w.Write(page); err != nil {
-			log.Printf("Could not serve: %v", err)
+			m.successFS.ServeHTTP(w, r)
+		} else if m.me != nil {
+			m.successFS.ServeHTTP(w, r)
+		} else {
+			m.loginFS.ServeHTTP(w, r)
 		}
 	})
 

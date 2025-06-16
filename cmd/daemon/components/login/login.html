@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>VRPAWS Login</title>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <title>VRPaws Login</title>
     <style>
         /* full-page gradient & centering */
         html, body {
@@ -16,9 +16,11 @@
             background: linear-gradient(135deg, #89f7fe 0%, #66a6ff 100%);
             color: #fff;
         }
+
         .container {
             text-align: center;
         }
+
         button {
             padding: 1em 2em;
             font-size: 1.1rem;
@@ -28,13 +30,16 @@
             cursor: pointer;
             transition: transform 0.2s;
         }
+
         button:hover {
             transform: scale(1.05);
         }
+
         .message {
             font-size: 1.2rem;
             margin-bottom: 1em;
         }
+
         .count {
             font-weight: bold;
         }
@@ -46,10 +51,11 @@
 </div>
 
 <script>
-    (function() {
+    (function () {
         const params = new URLSearchParams(window.location.search);
         const token = params.get('access_token');
         const container = document.getElementById('app');
+        const CALLBACK_URL = "http://localhost"
 
         if (!token) {
             // --- Default: show login button ---
@@ -60,10 +66,7 @@
             btn.textContent = 'Log in with VRPAWS';
             btn.onclick = () => {
                 // redirect to the VRPAWS flow
-                window.location.href =
-                    'http://vrpa.ws/client/connect?redirect_url=' +
-                    encodeURIComponent('{CALLBACK_URL}') +
-                    '&service_name=vrpaws-client';
+                window.location.href = `http://vrpa.ws/client/connect?redirect_url=${CALLBACK_URL}&service_name=vrpaws-client`;
             };
             container.appendChild(msg);
             container.appendChild(btn);

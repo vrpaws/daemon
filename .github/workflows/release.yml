@@ -1,0 +1,67 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+        include:
+          - os: windows-latest
+            artifact_name: vrpaws-client-${{ github.ref_name }}.exe
+          - os: ubuntu-latest
+            artifact_name: vrpaws-client-linux-${{ github.ref_name }}
+          - os: macos-latest
+            artifact_name: vrpaws-client-macos-${{ github.ref_name }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Build Bun Components
+        run: |
+          cd cmd/daemon/components/login/login
+          bun run build
+          cd ../success
+          bun run build
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.4'
+
+      - name: Build Daemon
+        run: |
+          go build -o ${{ matrix.artifact_name }} ./cmd/daemon
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.artifact_name }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            vrpaws-client-*.exe
+            vrpaws-client-linux-*
+            vrpaws-client-macos-*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
