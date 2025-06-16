@@ -121,7 +121,7 @@ func (m *Uploader) async(event *fsnotify.Event) func() tea.Msg {
 		}
 
 		// TODO: try to match with settings.Config.Path
-		if !strings.HasSuffix(event.Name, ".png") {
+		if !strings.HasSuffix(filepath.Base(event.Name), "VRChat") || !strings.HasSuffix(event.Name, ".png") {
 			return nil
 		}
 
