@@ -12,6 +12,7 @@ import (
 
 	"vrc-moments/cmd/daemon/components/footer"
 	"vrc-moments/cmd/daemon/components/logger"
+	"vrc-moments/cmd/daemon/components/login"
 	"vrc-moments/cmd/daemon/components/settings"
 	"vrc-moments/cmd/daemon/components/tabs"
 	"vrc-moments/cmd/daemon/components/upload"
@@ -28,6 +29,7 @@ type Model struct {
 	ctx    context.Context
 	server *vrpaws.Server
 
+	login    tea.Model
 	tabs     tea.Model
 	logger   tea.Model
 	uploader tea.Model
@@ -48,6 +50,7 @@ func NewModel(u *url.URL, config *settings.Config) Model {
 	model := Model{
 		config: config,
 		server: server,
+		login:  login.New(config, server),
 		tabs: tabs.New([]string{
 			"Logger",
 			"Upload",

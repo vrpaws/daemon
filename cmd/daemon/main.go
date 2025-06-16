@@ -24,8 +24,8 @@ import (
 )
 
 func main() {
-	config, err := lib.DecodeFromFile[*settings.Config](lib.ConfigPath)
-	if err != nil {
+	config, saveError := lib.DecodeFromFile[*settings.Config](lib.ConfigPath)
+	if saveError != nil {
 		config = new(settings.Config)
 	}
 
@@ -39,8 +39,8 @@ func main() {
 	roomErr := getRoom(config)
 	patterns, patternErr := getPatterns(config)
 
-	if errors.Is(err, os.ErrNotExist) {
-		err = config.Save()
+	if errors.Is(saveError, os.ErrNotExist) {
+		saveError = config.Save()
 	}
 
 	model := app.NewModel(remote, config)
@@ -50,7 +50,8 @@ func main() {
 
 	program.Send(logFile)
 	program.Send(program)
-	program.Send(err)
+	program.Send(message.LoginRequest{})
+	program.Send(saveError)
 	program.Send(usernameErr)
 	program.Send(roomErr)
 	program.Send(patternErr)
@@ -72,9 +73,6 @@ func main() {
 			Separator: "",
 			Save:      true,
 		})
-	}
-	if config.Token == "" {
-		program.Send(logger.NewMessageTime("Token is unset, please go to the settings tab to change it"))
 	}
 
 	program.Wait()
@@ -160,10 +158,10 @@ func getPatterns(config *settings.Config) ([]string, error) {
 		config.Path = strings.TrimRight(config.Path, `*\/`+string(filepath.Separator))
 	}
 
-	config.Path = strings.ReplaceAll(config.Path, `\`, "/")
 	prints := filepath.Join("!"+config.Path, "Prints", "***")
 	stickers := filepath.Join("!"+config.Path, "Stickers", "***")
 	config.Path = filepath.Join(config.Path, "***")
+	config.Path = strings.ReplaceAll(config.Path, `\`, "/")
 
 	patterns, err := lib.ExpandPatterns(true, false, config.Path, prints, stickers)
 	if err != nil {

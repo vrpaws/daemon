@@ -14,7 +14,7 @@ import (
 )
 
 func (m *Model) Init() tea.Cmd {
-	return tea.Batch(m.logger.Init(), m.tabs.Init(), m.settings.Init(), m.uploader.Init(), tea.SetWindowTitle("VRC Moments"))
+	return tea.Batch(m.login.Init(), m.logger.Init(), m.tabs.Init(), m.settings.Init(), m.uploader.Init(), tea.SetWindowTitle("VRPaws Client"))
 }
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -58,7 +58,7 @@ func (m *Model) Write(p []byte) (n int, err error) {
 
 func (m *Model) propagate(msg tea.Msg, models ...*tea.Model) (tea.Model, tea.Cmd) {
 	if len(models) == 0 {
-		models = []*tea.Model{&m.logger, &m.tabs, &m.settings, &m.footer, &m.uploader}
+		models = []*tea.Model{&m.logger, &m.tabs, &m.settings, &m.footer, &m.uploader, &m.login}
 	}
 
 	cmds := make([]tea.Cmd, 0, len(models))

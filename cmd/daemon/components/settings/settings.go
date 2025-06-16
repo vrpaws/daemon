@@ -28,12 +28,12 @@ type Model struct {
 }
 
 type Config struct {
-	Username  string `json:"username"`
-	UserID    string `json:"user_id"`
+	Username  string `json:"vrchat_username"`
+	UserID    string `json:"user_id,omitempty"`
 	Token     string `json:"token"`
 	Path      string `json:"path"`
 	Server    string `json:"server"`
-	LastWorld string `json:"last_world"`
+	LastWorld string `json:"last_world,omitempty"`
 
 	server api.Server[*vrpaws.Me, *vrpaws.UploadResponse]
 	me     *vrpaws.Me
@@ -141,6 +141,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case *vrpaws.Me:
 		m.config.me = msg
 		m.config.Token = msg.User.AccessToken
+		m.inputs[token].SetValue(m.config.Token)
 		return m, message.Callback(m.config.Save)
 	case message.UsernameSet:
 		m.inputs[username].SetValue(string(msg))
