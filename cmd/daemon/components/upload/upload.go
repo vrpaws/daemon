@@ -121,18 +121,12 @@ func (m *Uploader) async(event *fsnotify.Event) func() tea.Msg {
 			return nil
 		}
 
-		if event.Op.Has(fsnotify.Create) {
+		switch {
+		case event.Op.Has(fsnotify.Create):
 			dir, file := filepath.Split(event.Name)
 			folder := filepath.Base(dir)
 			return logger.NewMessageTimef("A new photo was taken at %s", filepath.Join(folder, file))
-		}
-
-		switch event.Op {
-		case fsnotify.Create:
-			dir, file := filepath.Split(event.Name)
-			folder := filepath.Base(dir)
-			return logger.NewMessageTimef("A new photo was taken at %s", filepath.Join(folder, file))
-		case fsnotify.Write:
+		case event.Op.Has(fsnotify.Write):
 			return <-m.queue.Promise(event)
 		default:
 			return nil
