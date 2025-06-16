@@ -123,29 +123,28 @@ func (m Tabs) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 	case tea.MouseMsg:
 		switch msg.Action {
-		case tea.MouseActionMotion:
-			for i, item := range m.items {
-				if zone.Get(item.prefix).InBounds(msg) {
-					m.activeIndex = uint8(i)
-					item.style = item.style.Foreground(lipgloss.Color("#ffb3e3")).Bold(true)
-				} else {
-					item.style = item.style.UnsetForeground().UnsetBold()
-				}
-			}
 		case tea.MouseActionPress:
 			for i, item := range m.items {
 				if zone.Get(item.prefix).InBounds(msg) {
 					m.activeIndex = uint8(i)
+				}
+				if m.activeIndex == uint8(i) {
 					item.style = activeTab.Foreground(lipgloss.Color("#ffb3e3")).Bold(true)
 				} else {
 					item.style = normalTab
 				}
 			}
 		default:
+			for _, item := range m.items {
+				if zone.Get(item.prefix).InBounds(msg) {
+					item.style = item.style.Foreground(lipgloss.Color("#ffb3e3")).Bold(true)
+				} else {
+					item.style = item.style.UnsetForeground().UnsetBold()
+				}
+			}
+
 			return m, nil
 		}
-
-		return m, nil
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+shift+tab":
