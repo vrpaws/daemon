@@ -37,6 +37,7 @@ func main() {
 	remote := getRemote(config)
 	usernameErr := getUsername(config)
 	roomErr := getRoom(config)
+	patterns, patternErr := getPatterns(config)
 
 	if errors.Is(err, os.ErrNotExist) {
 		err = config.Save()
@@ -52,8 +53,6 @@ func main() {
 	program.Send(err)
 	program.Send(usernameErr)
 	program.Send(roomErr)
-
-	patterns, patternErr := getPatterns(config)
 	program.Send(patternErr)
 
 	program.Send(lib.NewWatcher(
@@ -154,12 +153,17 @@ func getPatterns(config *settings.Config) ([]string, error) {
 			directory = filepath.Join("~", strings.TrimPrefix(directory, homedir))
 		}
 
-		config.Path = filepath.Join("~", strings.TrimPrefix(directory, homedir), "***")
+		config.Path = directory
 	}
 
-	return lib.ExpandPatterns(true, false,
-		config.Path,
-		filepath.Join("!"+config.Path, "Prints"),
-		filepath.Join("!"+config.Path, "Stickers"),
-	)
+	prints := filepath.Join("!"+config.Path, "Prints", "***")
+	stickers := filepath.Join("!"+config.Path, "Stickers", "***")
+	config.Path = strings.ReplaceAll(filepath.Join(config.Path, "***"), `\`, "/")
+
+	patterns, err := lib.ExpandPatterns(true, false, config.Path, prints, stickers)
+	if err != nil {
+		return nil, err
+	}
+
+	return patterns, config.Save()
 }
