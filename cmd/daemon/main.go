@@ -150,8 +150,16 @@ func getPatterns(config *settings.Config) ([]string, error) {
 			return nil, fmt.Errorf("error getting directory: %w", err)
 		}
 
+		if strings.HasPrefix(directory, homedir) {
+			directory = filepath.Join("~", strings.TrimPrefix(directory, homedir))
+		}
+
 		config.Path = filepath.Join("~", strings.TrimPrefix(directory, homedir), "***")
 	}
 
-	return lib.ExpandPatterns(true, false, strings.TrimRight(config.Path, "/*")+"/***")
+	return lib.ExpandPatterns(true, false,
+		config.Path,
+		filepath.Join("!"+config.Path, "Prints"),
+		filepath.Join("!"+config.Path, "Stickers"),
+	)
 }

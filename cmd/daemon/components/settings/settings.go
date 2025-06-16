@@ -328,7 +328,9 @@ func (m *Model) save() tea.Cmd {
 					cmds = append(cmds, message.Cmd(err))
 					continue
 				}
-				m.config.SetPath(value)
+				if err := m.config.SetPath(value); err != nil {
+					return message.Cmd(err)
+				}
 				m.inputs[i].Placeholder = value
 				cmds = append(cmds, message.Cmd(message.PathSet(value)), message.Cmd(message.PatternsSet(patterns)))
 			}
@@ -368,8 +370,14 @@ func (c *Config) Save() error {
 	return lib.EncodeToFile(lib.ConfigPath, c)
 }
 
-func (c *Config) SetPath(path string) {
+func (c *Config) SetPath(path string) error {
 	c.Path = path
+
+	if err := c.Save(); err != nil {
+		return fmt.Errorf("error writing config file: %w", err)
+	}
+
+	return nil
 }
 
 func (c *Config) SetUsername(username string) error {
