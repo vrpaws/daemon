@@ -27,6 +27,7 @@ type Server[user any, response any] interface {
 type UploadPayload struct {
 	Username string `json:"username"`
 	UserID   string `json:"user_id"`
+	Token    string `json:"token"`
 	File     *File  `json:"file"`
 }
 

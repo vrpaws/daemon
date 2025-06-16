@@ -14,24 +14,21 @@ import (
 )
 
 type Server struct {
-	client      *http.Client
-	context     context.Context
-	accessToken string
-	tokenCache  flight.Cache[string, *Me]
-	remote      *url.URL
+	client     *http.Client
+	context    context.Context
+	tokenCache flight.Cache[string, *Me]
+	remote     *url.URL
 }
 
-func NewVRPaws(remote *url.URL, ctx context.Context, token string) *Server {
+func NewVRPaws(remote *url.URL, ctx context.Context) *Server {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	ctx = context.WithValue(ctx, "token", token)
 
 	v := &Server{
-		client:      &http.Client{Timeout: 5 * time.Minute},
-		context:     ctx,
-		accessToken: token,
-		remote:      remote,
+		client:  &http.Client{Timeout: 5 * time.Minute},
+		context: ctx,
+		remote:  remote,
 	}
 	v.tokenCache = flight.NewCache(v.validToken)
 
@@ -45,7 +42,7 @@ func (s *Server) ValidToken(token string) (*Me, error) {
 	}
 
 	if me == nil || me.User.AccessToken != token {
-		return nil, errors.New("invalid token")
+		return nil, errors.New("unexpected token")
 	}
 
 	return me, nil

@@ -51,7 +51,7 @@ type UploadResponse struct {
 func (s *Server) Upload(ctx context.Context, payload api.UploadPayload) (*UploadResponse, error) {
 	defer payload.File.Close()
 
-	if s.accessToken == "" {
+	if payload.Token == "" {
 		return nil, errors.New("missing access token")
 	}
 
@@ -93,7 +93,7 @@ func (s *Server) Upload(ctx context.Context, payload api.UploadPayload) (*Upload
 			reader = bytes.NewReader(main.Bytes())
 		}
 
-		id, err := s.upload(s.accessToken, reader)
+		id, err := s.upload(payload.Token, reader)
 		if err != nil {
 			return nil, fmt.Errorf("could not upload %s image: %w", mode, err)
 		}
@@ -121,7 +121,7 @@ func (s *Server) Upload(ctx context.Context, payload api.UploadPayload) (*Upload
 	if err != nil {
 		return nil, fmt.Errorf("could not create upload request: %w", err)
 	}
-	req.Header.Set("Authorization", "Bearer "+s.accessToken)
+	req.Header.Set("Authorization", "Bearer "+payload.Token)
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := s.client.Do(req)

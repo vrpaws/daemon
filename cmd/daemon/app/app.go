@@ -45,7 +45,7 @@ type screen struct {
 
 func NewModel(u *url.URL, config *settings.Config) Model {
 	ctx := context.Background()
-	server := vrpaws.NewVRPaws(u, ctx, config.Token)
+	server := vrpaws.NewVRPaws(u, ctx)
 
 	model := Model{
 		config: config,

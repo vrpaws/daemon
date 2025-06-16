@@ -152,6 +152,7 @@ func (m *Uploader) upload(event *fsnotify.Event) (*vrpaws.UploadResponse, error)
 	payload := api.UploadPayload{
 		Username: m.config.Username,
 		UserID:   m.config.UserID,
+		Token:    m.config.Token,
 		File:     f,
 	}
 
