@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	zone "github.com/lrstanley/bubblezone"
 
 	"vrc-moments/pkg/gradient"
 )
@@ -15,6 +16,40 @@ type Renderable interface {
 	Len() int
 	ShouldSave() bool
 	Raw() string
+}
+
+type Anchor struct {
+	Message Renderable
+	OnClick func()
+	Prefix  string
+}
+
+func NewAnchor(message Renderable, callback func(), prefix string) Anchor {
+	if prefix == "" {
+		prefix = zone.NewPrefix() + message.Raw()
+	}
+	return Anchor{
+		Message: message,
+		OnClick: callback,
+		Prefix:  prefix,
+	}
+}
+
+func (a Anchor) String(width int) (string, int) {
+	text, height := a.Message.String(width)
+	return zone.Mark(a.Prefix, text), height
+}
+
+func (a Anchor) Len() int {
+	return a.Message.Len()
+}
+
+func (a Anchor) ShouldSave() bool {
+	return a.Message.ShouldSave()
+}
+
+func (a Anchor) Raw() string {
+	return a.Message.Raw()
 }
 
 type Concat struct {

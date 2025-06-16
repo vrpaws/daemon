@@ -13,6 +13,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/fsnotify/fsnotify"
+	"github.com/pkg/browser"
 
 	"vrc-moments/cmd/daemon/components/logger"
 	"vrc-moments/cmd/daemon/components/settings"
@@ -175,14 +176,20 @@ func (m *Uploader) upload(event *fsnotify.Event) (*vrpaws.UploadResponse, error)
 		m.program.Send(logger.Concat{
 			Items: []logger.Renderable{
 				logger.NewMessageTime("https://vrpa.ws/photo/"),
-				logger.NewGradientString(response.Image, time.Second,
-					lib.Random(
-						gradient.BlueGreenYellow,
-						gradient.PastelRainbow,
-						gradient.PastelGreenBlue,
-						gradient.GreenPinkBlue,
-					)...,
-				),
+				logger.Anchor{
+					Message: logger.NewGradientString(response.Image, time.Second,
+						lib.Random(
+							gradient.BlueGreenYellow,
+							gradient.PastelRainbow,
+							gradient.PastelGreenBlue,
+							gradient.GreenPinkBlue,
+						)...,
+					),
+					OnClick: func() {
+						m.program.Send(browser.OpenURL("https://vrpa.ws/photo/" + response.Image))
+					},
+					Prefix: response.Image,
+				},
 			},
 			Save: true,
 		})

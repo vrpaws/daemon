@@ -14,6 +14,7 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	zone "github.com/lrstanley/bubblezone"
 )
 
 var (
@@ -43,6 +44,7 @@ type Logger struct {
 	height    int
 	last      int
 
+	callbacks map[string]func()
 	logWriter io.Writer
 }
 
@@ -58,6 +60,7 @@ func NewLogger() *Logger {
 			messages: make([]Renderable, numLastResults),
 			last:     -1,
 
+			callbacks: make(map[string]func()),
 			logWriter: io.Discard,
 		}
 	}
@@ -84,6 +87,13 @@ func (m *Logger) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		return m, nil
 	case tea.MouseMsg:
+		if msg.Button == tea.MouseButtonLeft {
+			for prefix, callback := range m.callbacks {
+				if zone.Get(prefix).InBounds(msg) {
+					callback()
+				}
+			}
+		}
 		if !tea.MouseEvent(msg).IsWheel() {
 			return m, nil
 		}
@@ -109,6 +119,16 @@ func (m *Logger) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 	case Renderable:
+		if concat, ok := msg.(Concat); ok {
+			for _, item := range concat.Items {
+				if anchor, ok := item.(Anchor); ok && anchor.OnClick != nil {
+					m.callbacks[anchor.Prefix] = anchor.OnClick
+				}
+			}
+		}
+		if anchor, ok := msg.(Anchor); ok && anchor.OnClick != nil {
+			m.callbacks[anchor.Prefix] = anchor.OnClick
+		}
 		m.messages = append(m.messages[1:], msg)
 		if msg.ShouldSave() {
 			go m.writeToLog(msg.Raw())
