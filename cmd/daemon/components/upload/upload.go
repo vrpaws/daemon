@@ -16,6 +16,7 @@ import (
 	"github.com/pkg/browser"
 
 	"vrc-moments/cmd/daemon/components/logger"
+	"vrc-moments/cmd/daemon/components/message"
 	"vrc-moments/cmd/daemon/components/settings"
 	lib "vrc-moments/pkg"
 	"vrc-moments/pkg/api"
@@ -63,6 +64,8 @@ func (m *Uploader) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case *tea.Program:
 		m.program = msg
 		return m, nil
+	case *message.PatternsSet:
+		return m, message.Cmd(m.watcher.SetPaths(*msg))
 	case *lib.Watcher:
 		m.watcher = msg
 		err := m.watcher.Watch()
