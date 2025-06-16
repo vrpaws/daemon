@@ -55,29 +55,58 @@ var (
 		BottomRight: "┴",
 	}
 
-	tab = lipgloss.NewStyle().
-		Border(tabBorder, true).
-		BorderForeground(highlight).
-		Padding(0, 1)
+	normalTab = lipgloss.NewStyle().
+			Border(tabBorder, true).
+			BorderForeground(highlight).
+			Padding(0, 1)
 
-	activeTab = tab.Copy().Border(activeTabBorder, true)
+	activeTab = normalTab.Copy().Border(activeTabBorder, true)
 
-	tabGap = tab.Copy().
+	tabGap = normalTab.Copy().
 		BorderTop(false).
 		BorderLeft(false).
 		BorderRight(false)
 )
 
 type Tabs struct {
+	items []*tabItem
+
 	prefix string
 	height int
 	width  int
 
 	activeIndex uint8
-	Items       []string
 	out         []string
 	extra       string
 	spinner     spinner.Model
+}
+
+type tabItem struct {
+	prefix  string
+	content string
+	style   lipgloss.Style
+}
+
+func New(items []string, username string) Tabs {
+	const prefix = "tab"
+
+	tabs := Tabs{
+		prefix:  prefix,
+		out:     make([]string, len(items)+1),
+		items:   make([]*tabItem, len(items)),
+		extra:   username,
+		spinner: spinner.New(spinner.WithSpinner(spinner.Moon)),
+	}
+
+	for i, content := range items {
+		tabs.items[i] = &tabItem{
+			prefix:  prefix + content,
+			content: content,
+			style:   normalTab,
+		}
+	}
+
+	return tabs
 }
 
 func (m Tabs) Init() tea.Cmd {
@@ -93,16 +122,27 @@ func (m Tabs) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 	case tea.MouseMsg:
-		if msg.Action != tea.MouseActionPress {
-			return m, nil
-		}
-
-		for i, item := range m.Items {
-			// Check each item to see if it's in bounds.
-			if zone.Get(m.prefix + item).InBounds(msg) {
-				m.activeIndex = uint8(i)
-				break
+		switch msg.Action {
+		case tea.MouseActionMotion:
+			for i, item := range m.items {
+				if zone.Get(item.prefix).InBounds(msg) {
+					m.activeIndex = uint8(i)
+					item.style = item.style.Foreground(lipgloss.Color("#ffb3e3")).Bold(true)
+				} else {
+					item.style = item.style.UnsetForeground().UnsetBold()
+				}
 			}
+		case tea.MouseActionPress:
+			for i, item := range m.items {
+				if zone.Get(item.prefix).InBounds(msg) {
+					m.activeIndex = uint8(i)
+					item.style = activeTab.Foreground(lipgloss.Color("#ffb3e3")).Bold(true)
+				} else {
+					item.style = normalTab
+				}
+			}
+		default:
+			return m, nil
 		}
 
 		return m, nil
@@ -123,17 +163,19 @@ func (m Tabs) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Tabs) Next() Tabs {
-	m.activeIndex = (m.activeIndex + 1) % uint8(len(m.Items))
+	m.activeIndex = (m.activeIndex + 1) % uint8(len(m.items))
 	return m
 }
 
 func (m Tabs) Previous() Tabs {
-	m.activeIndex = (m.activeIndex - 1) % uint8(len(m.Items))
+	a := m.activeIndex - 1
+	b := uint8(len(m.items))
+	m.activeIndex = (a%b + b) % b
 	return m
 }
 
 func (m Tabs) Active() string {
-	return m.Items[m.activeIndex]
+	return m.items[m.activeIndex].content
 }
 
 func (m Tabs) Index() uint8 {
@@ -142,17 +184,15 @@ func (m Tabs) Index() uint8 {
 
 func (m Tabs) View() string {
 	if m.out == nil {
-		m.out = make([]string, len(m.Items)+1)
+		m.out = make([]string, len(m.items)+1)
 	}
-	m.out[0] = tab.Render(m.spinner.View())
-	for i, item := range m.Items {
+
+	m.out[0] = normalTab.Render(m.spinner.View())
+	for i, item := range m.items {
 		// Make sure to mark each tab when rendering.
-		if uint8(i) == m.activeIndex {
-			m.out[i+1] = zone.Mark(m.prefix+item, activeTab.Render(item))
-		} else {
-			m.out[i+1] = zone.Mark(m.prefix+item, tab.Render(item))
-		}
+		m.out[i+1] = zone.Mark(item.prefix, item.style.Render(item.content))
 	}
+
 	row := lipgloss.JoinHorizontal(lipgloss.Top, m.out...)
 	username := activeTab.Render(m.extra)
 	gap := tabGap.Render(strings.Repeat(" ", max(0, m.width-calculateWidths(row, username))))
@@ -166,14 +206,4 @@ func calculateWidths(items ...string) int {
 		total += lipgloss.Width(item) + 2
 	}
 	return total
-}
-
-func New(items []string, username string) Tabs {
-	return Tabs{
-		prefix:  "tab",
-		Items:   items,
-		out:     make([]string, len(items)+1),
-		extra:   username,
-		spinner: spinner.New(spinner.WithSpinner(spinner.Moon)),
-	}
 }

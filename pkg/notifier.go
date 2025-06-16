@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -69,19 +70,32 @@ func (w *Watcher) AddPath(path string) error {
 		w.watcher = watcher
 	}
 
-	w.paths = append(w.paths, path)
 	err := w.watcher.Add(path)
 	if err != nil {
 		return fmt.Errorf("failed to add watcher: %w", err)
 	}
+	w.paths = append(w.paths, path)
 
 	return nil
 }
 
-func (w *Watcher) SetWork(work func(*fsnotify.Event)) {
-	w.mu.Lock()
-	w.work = work
-	w.mu.Unlock()
+func (w *Watcher) RemovePath(path string) error {
+	if w.watcher == nil {
+		watcher, err := fsnotify.NewWatcher()
+		if err != nil {
+			return fmt.Errorf("failed to create watcher: %w", err)
+		}
+		w.watcher = watcher
+		return nil
+	}
+
+	err := w.watcher.Remove(path)
+	if err != nil {
+		return fmt.Errorf("failed to add watcher: %w", err)
+	}
+	w.paths = slices.DeleteFunc(w.paths, func(s string) bool { return strings.EqualFold(s, path) })
+
+	return nil
 }
 
 func (w *Watcher) Stop() error {
@@ -134,6 +148,11 @@ func (w *Watcher) Watch() error {
 			case event, ok := <-w.watcher.Events:
 				if !ok {
 					return
+				}
+
+				if event.Has(fsnotify.Create) {
+					w.work(&event)
+					continue
 				}
 				if !event.Has(fsnotify.Write) {
 					continue

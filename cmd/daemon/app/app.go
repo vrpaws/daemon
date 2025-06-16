@@ -4,10 +4,8 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
 	"net/url"
 	"os"
-	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	zone "github.com/lrstanley/bubblezone"
@@ -48,28 +46,16 @@ func NewModel(u *url.URL, config *settings.Config) Model {
 	ctx := context.Background()
 	server := vrpaws.NewVRPaws(u, ctx, config.Token)
 
-	patterns, err := lib.ExpandPatterns(true, false, config.Path)
-	if err != nil || len(patterns) == 0 {
-		log.Fatalf("failed to expand patterns for %s: %v", config.Path, err)
-	}
-
-	watcher := lib.NewWatcher(
-		patterns,
-		5*time.Second,
-		nil,
-	)
-
 	model := Model{
-		config:  config,
-		watcher: watcher,
-		server:  server,
+		config: config,
+		server: server,
 		tabs: tabs.New([]string{
 			"Logger",
 			"Upload",
 			"Settings",
 		}, config.Username),
 		logger:   logger.NewLogger(),
-		uploader: upload.NewModel(watcher, ctx, config, server),
+		uploader: upload.NewModel(ctx, config, server),
 		settings: settings.New(config, server),
 		footer: footer.New([]*string{
 			&config.LastWorld,

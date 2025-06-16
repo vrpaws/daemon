@@ -15,6 +15,7 @@ import (
 	"github.com/fsnotify/fsnotify"
 
 	"vrc-moments/cmd/daemon/components/logger"
+	"vrc-moments/cmd/daemon/components/message"
 	"vrc-moments/cmd/daemon/components/settings"
 	lib "vrc-moments/pkg"
 	"vrc-moments/pkg/api"
@@ -35,14 +36,12 @@ type Uploader struct {
 	server api.Server
 }
 
-func NewModel(watcher *lib.Watcher, ctx context.Context, config *settings.Config, server api.Server) *Uploader {
+func NewModel(ctx context.Context, config *settings.Config, server api.Server) *Uploader {
 	uploader := &Uploader{
-		watcher: watcher,
-		ctx:     ctx,
-		config:  config,
-		server:  server,
+		ctx:    ctx,
+		config: config,
+		server: server,
 	}
-	uploader.watcher.SetWork(uploader.receive)
 	uploader.uploadFlight = flight.NewCache(uploader.upload)
 	uploader.queue = worker.NewPool(runtime.NumCPU(), func(event *fsnotify.Event) error {
 		_, err := uploader.uploadFlight.Get(event)
@@ -62,49 +61,57 @@ func (m *Uploader) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.async(msg)
 	case *tea.Program:
 		m.program = msg
+		return m, nil
+	case *lib.Watcher:
+		m.watcher = msg
 		err := m.watcher.Watch()
 		if err != nil {
 			log.Printf("failed to start watcher: %v", err)
 			panic(err)
 		}
 		paths := m.watcher.Paths()
-		log.Printf("Watcher started with %d directories: %s...", len(paths), paths[0])
+		log.Printf("Watcher started with %d directories:", len(paths))
+		for i, path := range paths {
+			log.Printf("\t%s", path)
+			if i == 10 {
+				log.Printf("and %d more...", len(paths)-i)
+				break
+			}
+		}
 		m.queue.Work()
 		return m, nil
 	default:
+		return m, nil
 	}
-
-	return m, nil
 }
 
 func (m *Uploader) View() string {
 	return "empty"
 }
 
-// external callback to notify the *tea.Program
-func (m *Uploader) receive(event *fsnotify.Event) {
-	if m.program == nil {
-		log.Println("Cannot receive: program not yet initialized")
-		return
-	}
-
-	m.program.Send(event)
-}
-
 // async function to prepare and call relevant [lib.Watcher.AddPath] or upload
 func (m *Uploader) async(event *fsnotify.Event) func() tea.Msg {
 	return func() tea.Msg {
-		if m.program == nil {
+		if m.watcher == nil {
 			return errors.New("upload: program not yet initialized")
 		}
 
 		if fi, err := os.Stat(event.Name); err == nil {
 			if fi.IsDir() {
-				err := m.watcher.AddPath(event.Name)
-				if err != nil {
-					return fmt.Errorf("could not add new directory to watcher: %w", err)
+				if event.Op.Has(fsnotify.Remove) {
+					err := m.watcher.RemovePath(event.Name)
+					if err != nil {
+						return fmt.Errorf("could not remove %s to watcher: %w", event.Name, err)
+					} else {
+						return nil
+					}
 				} else {
-					return nil
+					err := m.watcher.AddPath(event.Name)
+					if err != nil {
+						return fmt.Errorf("could not add %s to watcher: %w", event.Name, err)
+					} else {
+						return nil
+					}
 				}
 			}
 		}
@@ -114,10 +121,22 @@ func (m *Uploader) async(event *fsnotify.Event) func() tea.Msg {
 			return nil
 		}
 
-		dir, file := filepath.Split(event.Name)
-		folder := filepath.Base(dir)
-		m.program.Send(logger.NewMessageTimef("A new photo was taken at %s", filepath.Join(folder, file)))
-		return <-m.queue.Promise(event)
+		if event.Op.Has(fsnotify.Create) {
+			dir, file := filepath.Split(event.Name)
+			folder := filepath.Base(dir)
+			return message.Cmd(logger.NewMessageTimef("A new photo was taken at %s", filepath.Join(folder, file)))
+		}
+
+		switch event.Op {
+		case fsnotify.Create:
+			dir, file := filepath.Split(event.Name)
+			folder := filepath.Base(dir)
+			return logger.NewMessageTimef("A new photo was taken at %s", filepath.Join(folder, file))
+		case fsnotify.Write:
+			return <-m.queue.Promise(event)
+		default:
+			return nil
+		}
 	}
 }
 

@@ -6,12 +6,17 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
+	"github.com/fsnotify/fsnotify"
 	_ "github.com/joho/godotenv/autoload"
+	"github.com/sqweek/dialog"
 
 	"vrc-moments/cmd/daemon/app"
 	"vrc-moments/cmd/daemon/components/logger"
+	"vrc-moments/cmd/daemon/components/message"
 	"vrc-moments/cmd/daemon/components/settings"
 	lib "vrc-moments/pkg"
 	"vrc-moments/pkg/gradient"
@@ -26,16 +31,16 @@ func main() {
 
 	config.Username = cmp.Or(os.Getenv("VRPAWS_USERNAME"), config.Username, "Unknown")
 	config.Token = cmp.Or(os.Getenv("VRPAWS_TOKEN"), config.Token)
-	config.Path = cmp.Or(os.Getenv("VRPAWS_PATH"), config.Path, "~/Pictures/VRChat/***")
+	config.Path = cmp.Or(os.Getenv("VRPAWS_PATH"), config.Path, "Unset")
 	config.LastWorld = cmp.Or(config.LastWorld, "Unknown")
-
-	if errors.Is(err, os.ErrNotExist) {
-		err = config.Save()
-	}
 
 	remote := getRemote(config)
 	usernameErr := getUsername(config)
 	roomErr := getRoom(config)
+
+	if errors.Is(err, os.ErrNotExist) {
+		err = config.Save()
+	}
 
 	model := app.NewModel(remote, config)
 	program := model.Run()
@@ -47,6 +52,16 @@ func main() {
 	program.Send(err)
 	program.Send(usernameErr)
 	program.Send(roomErr)
+
+	patterns, patternErr := getPatterns(config)
+	program.Send(patternErr)
+
+	program.Send(lib.NewWatcher(
+		patterns,
+		5*time.Second,
+		message.Invoke[*fsnotify.Event](program.Send),
+	))
+
 	program.Send(logger.NewMessageTime("Started up!"))
 	if config.Username != "Unknown" {
 		program.Send(logger.Concat{
@@ -118,4 +133,25 @@ func getRoom(config *settings.Config) error {
 	}
 
 	return nil
+}
+
+func getPatterns(config *settings.Config) ([]string, error) {
+	if config.Path == "Unset" {
+		startDir := "."
+		homedir, err := os.UserHomeDir()
+		if err == nil {
+			startDir = homedir
+			if vrcDefault := filepath.Join(startDir, "Pictures", "VRChat"); lib.FileExists(vrcDefault) {
+				startDir = vrcDefault
+			}
+		}
+		directory, err := dialog.Directory().SetStartDir(startDir).Title("Choose your VRChat Photos folder").Browse()
+		if err != nil {
+			return nil, fmt.Errorf("error getting directory: %w", err)
+		}
+
+		config.Path = filepath.Join("~", strings.TrimPrefix(directory, homedir), "***")
+	}
+
+	return lib.ExpandPatterns(true, false, strings.TrimRight(config.Path, "/*")+"/***")
 }
