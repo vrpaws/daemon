@@ -79,13 +79,47 @@ func (m *Model) View() string {
 	return "Launching login page...\n"
 }
 
-func (m *Model) login() tea.Msg {
-	listener, err := net.Listen("tcp", "localhost:0")
+func isLocalhostAccessible() bool {
+	addrs, err := net.LookupHost("localhost")
 	if err != nil {
-		return err
+		return false
 	}
-	addr := listener.Addr().String()
-	redirectURL := fmt.Sprintf("http://%s", addr)
+
+	// Check if localhost resolves to 127.0.0.1
+	for _, addr := range addrs {
+		if addr == "127.0.0.1" || addr == "::1" {
+			return true
+		}
+	}
+	return false
+}
+
+func (m *Model) login() tea.Msg {
+	var hostname string
+	var listener net.Listener
+	var err error
+
+	if isLocalhostAccessible() {
+		listener, err = net.Listen("tcp", "localhost:0")
+		if err == nil {
+			hostname = "localhost"
+		} else {
+			listener, err = net.Listen("tcp", "127.0.0.1:0")
+			if err != nil {
+				return err
+			}
+			hostname = "127.0.0.1"
+		}
+	} else {
+		listener, err = net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			return err
+		}
+		hostname = "127.0.0.1"
+	}
+
+	_, port, _ := net.SplitHostPort(listener.Addr().String())
+	redirectURL := fmt.Sprintf("http://%s:%s", hostname, port)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -116,7 +150,7 @@ func (m *Model) login() tea.Msg {
 	}()
 
 	connectURL := fmt.Sprintf(
-		"http://vrpa.ws/client/connect?redirect_url=%s&service_name=%s",
+		"https://vrpa.ws/client/connect?redirect_url=%s&service_name=%s",
 		url.QueryEscape(redirectURL),
 		"vrpaws-client",
 	)
