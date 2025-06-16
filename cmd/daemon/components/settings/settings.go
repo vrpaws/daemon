@@ -35,7 +35,7 @@ type Config struct {
 	Server    string `json:"server"`
 	LastWorld string `json:"last_world"`
 
-	server api.Server[*vrpaws.Me]
+	server api.Server[*vrpaws.Me, *vrpaws.UploadResponse]
 	me     *vrpaws.Me
 }
 
@@ -67,7 +67,7 @@ var (
 	normalStyle = lipgloss.NewStyle().Italic(true)
 )
 
-func New(config *Config, server api.Server[*vrpaws.Me]) *Model {
+func New(config *Config, server *vrpaws.Server) *Model {
 	var inputs []textinput.Model
 
 models:

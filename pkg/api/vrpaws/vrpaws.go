@@ -13,7 +13,7 @@ import (
 	"vrc-moments/pkg/flight"
 )
 
-type VRPaws struct {
+type Server struct {
 	client      *http.Client
 	context     context.Context
 	accessToken string
@@ -21,13 +21,13 @@ type VRPaws struct {
 	remote      *url.URL
 }
 
-func NewVRPaws(remote *url.URL, ctx context.Context, token string) *VRPaws {
+func NewVRPaws(remote *url.URL, ctx context.Context, token string) *Server {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	ctx = context.WithValue(ctx, "token", token)
 
-	v := &VRPaws{
+	v := &Server{
 		client:      &http.Client{Timeout: 5 * time.Minute},
 		context:     ctx,
 		accessToken: token,
@@ -38,7 +38,7 @@ func NewVRPaws(remote *url.URL, ctx context.Context, token string) *VRPaws {
 	return v
 }
 
-func (s *VRPaws) ValidToken(token string) (*Me, error) {
+func (s *Server) ValidToken(token string) (*Me, error) {
 	me, err := s.tokenCache.Get(token)
 	if err != nil {
 		return nil, err
@@ -51,7 +51,7 @@ func (s *VRPaws) ValidToken(token string) (*Me, error) {
 	return me, nil
 }
 
-func (s *VRPaws) validToken(token string) (*Me, error) {
+func (s *Server) validToken(token string) (*Me, error) {
 	if token == "" {
 		return nil, errors.New("invalid token")
 	}
@@ -81,7 +81,7 @@ func (s *VRPaws) validToken(token string) (*Me, error) {
 	return me, nil
 }
 
-func (s *VRPaws) SetRemote(remote string) error {
+func (s *Server) SetRemote(remote string) error {
 	parsed, err := url.Parse(remote)
 	if err != nil {
 		return err

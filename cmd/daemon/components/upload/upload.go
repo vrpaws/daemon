@@ -15,7 +15,6 @@ import (
 	"github.com/fsnotify/fsnotify"
 
 	"vrc-moments/cmd/daemon/components/logger"
-	"vrc-moments/cmd/daemon/components/message"
 	"vrc-moments/cmd/daemon/components/settings"
 	lib "vrc-moments/pkg"
 	"vrc-moments/pkg/api"
@@ -31,13 +30,13 @@ type Uploader struct {
 	config  *settings.Config
 	program *tea.Program
 
-	uploadFlight flight.Cache[*fsnotify.Event, string]
+	uploadFlight flight.Cache[*fsnotify.Event, *vrpaws.UploadResponse]
 	queue        worker.Pool[*fsnotify.Event, error]
 
-	server api.Server[*vrpaws.Me]
+	server api.Server[*vrpaws.Me, *vrpaws.UploadResponse]
 }
 
-func NewModel(ctx context.Context, config *settings.Config, server api.Server[*vrpaws.Me]) *Uploader {
+func NewModel(ctx context.Context, config *settings.Config, server *vrpaws.Server) *Uploader {
 	uploader := &Uploader{
 		ctx:    ctx,
 		config: config,
@@ -125,7 +124,7 @@ func (m *Uploader) async(event *fsnotify.Event) func() tea.Msg {
 		if event.Op.Has(fsnotify.Create) {
 			dir, file := filepath.Split(event.Name)
 			folder := filepath.Base(dir)
-			return message.Cmd(logger.NewMessageTimef("A new photo was taken at %s", filepath.Join(folder, file)))
+			return logger.NewMessageTimef("A new photo was taken at %s", filepath.Join(folder, file))
 		}
 
 		switch event.Op {
@@ -142,14 +141,14 @@ func (m *Uploader) async(event *fsnotify.Event) func() tea.Msg {
 }
 
 // the actual upload function
-func (m *Uploader) upload(event *fsnotify.Event) (string, error) {
+func (m *Uploader) upload(event *fsnotify.Event) (*vrpaws.UploadResponse, error) {
 	if m.program == nil {
-		return "", errors.New("upload: program not yet initialized")
+		return nil, errors.New("upload: program not yet initialized")
 	}
 
 	f, err := api.OpenFile(event.Name)
 	if err != nil {
-		return "", fmt.Errorf("opening %s: %w", event.Name, err)
+		return nil, fmt.Errorf("opening %s: %w", event.Name, err)
 	}
 
 	payload := api.UploadPayload{
@@ -162,24 +161,37 @@ func (m *Uploader) upload(event *fsnotify.Event) (string, error) {
 		m.config.UserID = f.Metadata.Author.ID
 		err := m.config.Save()
 		if err != nil {
-			return "", fmt.Errorf("saving config: %w", err)
+			return nil, fmt.Errorf("saving config: %w", err)
 		}
 	}
 
 	m.program.Send(logger.NewMessageTimef("Trying to upload %s...", payload.File.Filename))
-	err = m.server.Upload(m.ctx, payload)
+	response, err := m.server.Upload(m.ctx, payload)
 	if err != nil {
-		return "", fmt.Errorf("uploading %s: %w", payload.File.Filename, err)
+		return nil, fmt.Errorf("uploading %s: %w", payload.File.Filename, err)
 	} else {
 		m.program.Send(logger.Concat{
 			Items: []logger.Renderable{
 				logger.NewMessageTime("Successfully uploaded "),
-				logger.NewGradientString(payload.File.Filename, time.Second, gradient.PastelColors...),
+				logger.NewGradientString(payload.File.Filename, 100*time.Millisecond, gradient.PastelColors...),
 				logger.Message("!"),
 			},
-			Separator: "",
-			Save:      true,
+			Save: true,
 		})
-		return payload.File.SHA256, nil
+		m.program.Send(logger.Concat{
+			Items: []logger.Renderable{
+				logger.NewMessageTime("https://vrpa.ws/photo/"),
+				logger.NewGradientString(response.Image, time.Second,
+					lib.Random(
+						gradient.BlueGreenYellow,
+						gradient.PastelRainbow,
+						gradient.PastelGreenBlue,
+						gradient.GreenPinkBlue,
+					)...,
+				),
+			},
+			Save: true,
+		})
+		return response, nil
 	}
 }

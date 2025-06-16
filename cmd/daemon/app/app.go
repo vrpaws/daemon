@@ -16,7 +16,6 @@ import (
 	"vrc-moments/cmd/daemon/components/tabs"
 	"vrc-moments/cmd/daemon/components/upload"
 	lib "vrc-moments/pkg"
-	"vrc-moments/pkg/api"
 	"vrc-moments/pkg/api/vrpaws"
 )
 
@@ -27,7 +26,7 @@ type Model struct {
 	watcher *lib.Watcher
 
 	ctx    context.Context
-	server api.Server[*vrpaws.Me]
+	server *vrpaws.Server
 
 	tabs     tea.Model
 	logger   tea.Model

@@ -44,11 +44,15 @@ type World struct {
 	ID   string `json:"id"`
 }
 
-func (s *VRPaws) Upload(ctx context.Context, payload api.UploadPayload) error {
+type UploadResponse struct {
+	Image string `json:"image"`
+}
+
+func (s *Server) Upload(ctx context.Context, payload api.UploadPayload) (*UploadResponse, error) {
 	defer payload.File.Close()
 
 	if s.accessToken == "" {
-		return errors.New("missing access token")
+		return nil, errors.New("missing access token")
 	}
 
 	endpoint := *s.remote
@@ -57,12 +61,12 @@ func (s *VRPaws) Upload(ctx context.Context, payload api.UploadPayload) error {
 	var main bytes.Buffer
 	_, err := io.Copy(&main, payload.File.Data)
 	if err != nil {
-		return fmt.Errorf("could not copy file to buffer: %w", err)
+		return nil, fmt.Errorf("could not copy file to buffer: %w", err)
 	}
 
 	image, err := imaging.Decode(bytes.NewReader(main.Bytes()))
 	if err != nil {
-		return fmt.Errorf("could not decode image: %w", err)
+		return nil, fmt.Errorf("could not decode image: %w", err)
 	}
 
 	uploadPayload := uploadPayload{
@@ -83,7 +87,7 @@ func (s *VRPaws) Upload(ctx context.Context, payload api.UploadPayload) error {
 		if bounds.Dx() > size.width || bounds.Dy() > size.height {
 			reader, err = resize(image, size.width, size.height)
 			if err != nil {
-				return fmt.Errorf("could not resize %s image: %w", mode, err)
+				return nil, fmt.Errorf("could not resize %s image: %w", mode, err)
 			}
 		} else {
 			reader = bytes.NewReader(main.Bytes())
@@ -91,7 +95,7 @@ func (s *VRPaws) Upload(ctx context.Context, payload api.UploadPayload) error {
 
 		id, err := s.upload(s.accessToken, reader)
 		if err != nil {
-			return fmt.Errorf("could not upload %s image: %w", mode, err)
+			return nil, fmt.Errorf("could not upload %s image: %w", mode, err)
 		}
 
 		switch mode {
@@ -110,28 +114,33 @@ func (s *VRPaws) Upload(ctx context.Context, payload api.UploadPayload) error {
 
 	reader, err := lib.Encode(uploadPayload)
 	if err != nil {
-		return fmt.Errorf("could not encode upload payload: %w", err)
+		return nil, fmt.Errorf("could not encode upload payload: %w", err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint.String(), reader)
 	if err != nil {
-		return fmt.Errorf("could not create upload request: %w", err)
+		return nil, fmt.Errorf("could not create upload request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+s.accessToken)
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := s.client.Do(req)
 	if err != nil {
-		return fmt.Errorf("could not finalize upload: %w", err)
+		return nil, fmt.Errorf("could not finalize upload: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		bin, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("unexpected status code: %s: %s", resp.Status, bin)
+		return nil, fmt.Errorf("unexpected status code: %s: %s", resp.Status, bin)
 	}
 
-	return nil
+	response, err := lib.Decode[*UploadResponse](resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("could not decode upload response: %w", err)
+	}
+
+	return response, nil
 }
 
 type storageID struct {
@@ -142,7 +151,7 @@ type uploadURL struct {
 	URL string `json:"token"`
 }
 
-func (s *VRPaws) upload(accessToken string, file io.Reader) (string, error) {
+func (s *Server) upload(accessToken string, file io.Reader) (string, error) {
 	endpoint, err := s.getUploadToken(accessToken)
 	if err != nil {
 		return "", fmt.Errorf("could not get upload token: %w", err)
@@ -171,7 +180,7 @@ func (s *VRPaws) upload(accessToken string, file io.Reader) (string, error) {
 	return id.StorageID, nil
 }
 
-func (s *VRPaws) getUploadToken(accessToken string) (string, error) {
+func (s *Server) getUploadToken(accessToken string) (string, error) {
 	ctx, done := context.WithTimeout(s.context, 30*time.Second)
 	defer done()
 

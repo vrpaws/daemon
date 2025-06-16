@@ -9,6 +9,10 @@ import (
 )
 
 var PastelColors = []string{"#00E2FD", "#6D90FA", "#FF22EE", "#FF8D7A", "#FFC851"}
+var BlueGreenYellow = []string{"#2A7B9B", "#57C785", "#EDDD53"}
+var PastelRainbow = []string{"#C5F9D7", "#F7D486", "#F27A7D"}
+var PastelGreenBlue = []string{"#C2E59C", "#64B3F4"}
+var GreenPinkBlue = []string{"#CAEFD7", "#F5BFD7", "#ABC9E9"}
 
 func Static(s string, hexColors ...string) string {
 	switch len(hexColors) {

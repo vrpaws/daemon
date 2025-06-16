@@ -18,9 +18,9 @@ import (
 	"vrc-moments/pkg/vrc"
 )
 
-type Server[user any] interface {
+type Server[user any, response any] interface {
 	ValidToken(string) (user, error) // integrate with flight.Cache to prevent api spam
-	Upload(context.Context, UploadPayload) error
+	Upload(context.Context, UploadPayload) (response, error)
 	SetRemote(string) error
 }
 

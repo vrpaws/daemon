@@ -27,8 +27,8 @@ func valid[T any](T) (bool, error) {
 	return true, nil
 }
 
-func (s *LocalServer) Upload(ctx context.Context, payload UploadPayload) error {
-	return errors.New("not yet implemented")
+func (s *LocalServer) Upload(ctx context.Context, payload UploadPayload) (bool, error) {
+	return false, errors.New("not yet implemented")
 }
 
 func (s *LocalServer) ValidUser(username string) (bool, error) {

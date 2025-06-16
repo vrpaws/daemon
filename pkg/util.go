@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math/rand/v2"
 	"os"
 	"path"
 	"path/filepath"
@@ -96,6 +97,10 @@ func EncodeToFile(path string, v any) error {
 	encoder := json.NewEncoder(f)
 	encoder.SetIndent("", "  ")
 	return encoder.Encode(v)
+}
+
+func Random[T any](v ...T) T {
+	return v[rand.IntN(len(v))]
 }
 
 func Decode[T any](r io.Reader) (T, error) {
