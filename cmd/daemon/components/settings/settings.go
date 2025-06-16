@@ -138,6 +138,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	cmds := make([]tea.Cmd, len(m.inputs))
 
 	switch msg := msg.(type) {
+	case *vrpaws.Me:
+		m.config.me = msg
+		m.config.Token = msg.User.AccessToken
+		return m, message.Callback(m.config.Save)
 	case message.UsernameSet:
 		m.inputs[username].SetValue(string(msg))
 		return m, m.save()

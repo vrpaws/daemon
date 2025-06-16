@@ -19,6 +19,12 @@ func Cmd[T any](v T) tea.Cmd {
 	}
 }
 
+func Callback[T any](f func() T) tea.Cmd {
+	return func() tea.Msg {
+		return f()
+	}
+}
+
 func Invoke[T any](f func(tea.Msg)) func(T) {
 	return func(v T) {
 		f(v)
