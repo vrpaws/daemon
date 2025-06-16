@@ -60,9 +60,9 @@ var (
 			BorderForeground(highlight).
 			Padding(0, 1)
 
-	activeTab = normalTab.Copy().Border(activeTabBorder, true)
+	activeTab = normalTab.Border(activeTabBorder, true)
 
-	tabGap = normalTab.Copy().
+	tabGap = normalTab.
 		BorderTop(false).
 		BorderLeft(false).
 		BorderRight(false)
@@ -127,11 +127,7 @@ func (m Tabs) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			for i, item := range m.items {
 				if zone.Get(item.prefix).InBounds(msg) {
 					m.activeIndex = uint8(i)
-				}
-				if m.activeIndex == uint8(i) {
-					item.style = activeTab.Foreground(lipgloss.Color("#ffb3e3")).Bold(true)
-				} else {
-					item.style = normalTab
+					break
 				}
 			}
 		default:
@@ -142,9 +138,8 @@ func (m Tabs) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					item.style = item.style.UnsetForeground().UnsetBold()
 				}
 			}
-
-			return m, nil
 		}
+		return m, nil
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+shift+tab":
@@ -189,7 +184,11 @@ func (m Tabs) View() string {
 	m.out[0] = normalTab.Render(m.spinner.View())
 	for i, item := range m.items {
 		// Make sure to mark each tab when rendering.
-		m.out[i+1] = zone.Mark(item.prefix, item.style.Render(item.content))
+		if m.activeIndex == uint8(i) {
+			m.out[i+1] = zone.Mark(item.prefix, item.style.Border(activeTabBorder, true).Render(item.content))
+		} else {
+			m.out[i+1] = zone.Mark(item.prefix, item.style.Border(tabBorder).Render(item.content))
+		}
 	}
 
 	row := lipgloss.JoinHorizontal(lipgloss.Top, m.out...)
