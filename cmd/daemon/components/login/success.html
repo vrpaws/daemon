@@ -2,9 +2,80 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Title</title>
+    <title>Success</title>
+    <style>
+        /* Kidcore/ABDL pastel rainbow background */
+        body {
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: radial-gradient(circle at top left, #884e5d, #814878, #c45dcb, #552aab, #AFF8DB);
+            font-family: 'Comic Sans MS', 'Comic Sans', cursive;
+            overflow: hidden;
+        }
+
+        /* Giant, extra-bold text */
+        h1 {
+            font-size: 8rem;
+            font-weight: 900;
+            color: #ffffff;
+            text-shadow: 4px 4px 8px rgba(0,0,0,0.2);
+            margin: 0;
+        }
+
+        /* Countdown styling */
+        #countdown {
+            font-size: 3rem;
+            font-weight: 800;
+            color: #ffffff;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+            margin-top: 1rem;
+        }
+
+        /* Floating bubble decorations */
+        .bubble {
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            animation: float 6s infinite ease-in-out;
+        }
+        @keyframes float {
+            0%   { transform: translateY(0)    scale(1); }
+            50%  { transform: translateY(-30px) scale(1.2); }
+            100% { transform: translateY(0)    scale(1); }
+        }
+    </style>
 </head>
 <body>
+<!-- Bubbles for extra kidcore vibe -->
+<div class="bubble" style="width: 200px; height: 200px; top: 10%; left: 80%; animation-delay: 0s;"></div>
+<div class="bubble" style="width: 150px; height: 150px; top: 70%; left: 10%; animation-delay: 2s;"></div>
+<div class="bubble" style="width: 100px; height: 100px; top: 30%; left: 40%; animation-delay: 4s;"></div>
+<div class="bubble" style="width: 180px; height: 180px; top: 60%; left: 70%; animation-delay: 1s;"></div>
 
+<!-- Main message -->
+<h1>successfully logged in</h1>
+<div id="countdown">Closing in 5...</div>
+
+<script>
+    let seconds = 5;
+    const el = document.getElementById('countdown');
+
+    const timer = setInterval(() => {
+        seconds--;
+        if (seconds > 0) {
+            el.textContent = `Closing in ${seconds}...`;
+        } else {
+            clearInterval(timer);
+            el.textContent = 'Closing now!';
+            // Attempt to close the window after a brief pause
+            setTimeout(() => window.close(), 500);
+        }
+    }, 1000);
+</script>
 </body>
 </html>
