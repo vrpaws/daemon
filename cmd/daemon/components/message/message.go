@@ -13,6 +13,10 @@ type (
 	RoomSet     string
 )
 
+type (
+	LoginRequest struct{}
+)
+
 func Cmd[T any](v T) tea.Cmd {
 	return func() tea.Msg {
 		return v
@@ -22,6 +26,12 @@ func Cmd[T any](v T) tea.Cmd {
 func Callback[T any](f func() T) tea.Cmd {
 	return func() tea.Msg {
 		return f()
+	}
+}
+
+func CallbackValue[V any, T any](f func(V) T, v V) tea.Cmd {
+	return func() tea.Msg {
+		return f(v)
 	}
 }
 

@@ -7,14 +7,18 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"maps"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	zone "github.com/lrstanley/bubblezone"
+
+	"vrc-moments/cmd/daemon/components/message"
 )
 
 var (
@@ -46,6 +50,7 @@ type Logger struct {
 
 	callbacks map[string]tea.Cmd
 	logWriter io.Writer
+	mu        sync.Mutex
 }
 
 var globalLogger *Logger
@@ -119,22 +124,12 @@ func (m *Logger) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 	case Renderable:
-		if concat, ok := msg.(Concat); ok {
-			for _, item := range concat.Items {
-				if anchor, ok := item.(Anchor); ok && anchor.OnClick != nil {
-					m.callbacks[anchor.Prefix] = anchor.OnClick
-				}
-			}
-		}
-		if anchor, ok := msg.(Anchor); ok && anchor.OnClick != nil {
-			m.callbacks[anchor.Prefix] = anchor.OnClick
-		}
 		m.messages = append(m.messages[1:], msg)
 		if msg.ShouldSave() {
 			go m.writeToLog(msg.Raw())
 			return m, nil
 		}
-		return m, nil
+		return m, message.CallbackValue(m.registerCallbacks, msg)
 	case spinner.TickMsg:
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
@@ -153,6 +148,30 @@ func (m *Logger) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	default:
 		return m, nil
+	}
+}
+
+func (m *Logger) registerCallbacks(r Renderable) tea.Msg {
+	callbacks := make(map[string]tea.Cmd)
+	collectCallbacks(r, callbacks)
+
+	m.mu.Lock()
+	maps.Copy(m.callbacks, callbacks)
+	m.mu.Unlock()
+
+	return nil
+}
+
+func collectCallbacks(r Renderable, out map[string]tea.Cmd) {
+	switch v := r.(type) {
+	case Anchor:
+		if v.OnClick != nil {
+			out[v.Prefix] = v.OnClick
+		}
+	case Concat:
+		for _, item := range v.Items {
+			collectCallbacks(item, out)
+		}
 	}
 }
 
