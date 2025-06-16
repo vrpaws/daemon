@@ -146,6 +146,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.Poll()
 	case tea.KeyMsg:
 		switch msg.Type {
+		case tea.KeyCtrlS:
+			return m, m.save()
 		case tea.KeyEnter:
 			if m.focused == len(m.inputs) {
 				return m, m.save()
