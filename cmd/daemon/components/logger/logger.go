@@ -183,7 +183,7 @@ func (m *Logger) View() string {
 		s.WriteString("Cleaning up...")
 	} else {
 		s.WriteString(m.spinner.View())
-		s.WriteString(" VRC Moments Daemon working... 🐇🐕")
+		s.WriteString(" VRPaws Client working... 🐇🐕")
 	}
 
 	s.WriteString("\n\n")
