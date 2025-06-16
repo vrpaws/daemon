@@ -31,28 +31,28 @@ func (s *LocalServer) Upload(ctx context.Context, payload UploadPayload) error {
 	return errors.New("not yet implemented")
 }
 
-func (s *LocalServer) ValidUser(username string) error {
+func (s *LocalServer) ValidUser(username string) (bool, error) {
 	valid, err := s.usernameCache.Get(username)
 	if err != nil {
-		return fmt.Errorf("could not determine if user %q is valid: %w", username, err)
+		return false, fmt.Errorf("could not determine if user %q is valid: %w", username, err)
 	}
 	if !valid {
-		return fmt.Errorf("user %q is not valid", username)
+		return false, fmt.Errorf("user %q is not valid", username)
 	}
 
-	return errors.New("not yet implemented")
+	return false, errors.New("not yet implemented")
 }
 
-func (s *LocalServer) ValidToken(token string) error {
+func (s *LocalServer) ValidToken(token string) (bool, error) {
 	valid, err := s.tokenCache.Get(token)
 	if err != nil {
-		return fmt.Errorf("could not determine if token %q is valid: %w", token, err)
+		return false, fmt.Errorf("could not determine if token %q is valid: %w", token, err)
 	}
 	if !valid {
-		return fmt.Errorf("token %q is not valid", token)
+		return false, fmt.Errorf("token %q is not valid", token)
 	}
 
-	return errors.New("not yet implemented")
+	return false, errors.New("not yet implemented")
 }
 
 func (s *LocalServer) SetRemote(remote string) error {

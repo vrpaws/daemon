@@ -19,6 +19,7 @@ import (
 	"vrc-moments/cmd/daemon/components/settings"
 	lib "vrc-moments/pkg"
 	"vrc-moments/pkg/api"
+	"vrc-moments/pkg/api/vrpaws"
 	"vrc-moments/pkg/flight"
 	"vrc-moments/pkg/gradient"
 	"vrc-moments/pkg/worker"
@@ -33,10 +34,10 @@ type Uploader struct {
 	uploadFlight flight.Cache[*fsnotify.Event, string]
 	queue        worker.Pool[*fsnotify.Event, error]
 
-	server api.Server
+	server api.Server[*vrpaws.Me]
 }
 
-func NewModel(ctx context.Context, config *settings.Config, server api.Server) *Uploader {
+func NewModel(ctx context.Context, config *settings.Config, server api.Server[*vrpaws.Me]) *Uploader {
 	uploader := &Uploader{
 		ctx:    ctx,
 		config: config,

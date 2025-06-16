@@ -27,7 +27,7 @@ type Model struct {
 	watcher *lib.Watcher
 
 	ctx    context.Context
-	server api.Server
+	server api.Server[*vrpaws.Me]
 
 	tabs     tea.Model
 	logger   tea.Model

@@ -16,6 +16,7 @@ import (
 	"vrc-moments/cmd/daemon/components/message"
 	lib "vrc-moments/pkg"
 	"vrc-moments/pkg/api"
+	"vrc-moments/pkg/api/vrpaws"
 	"vrc-moments/pkg/vrc"
 )
 
@@ -34,7 +35,8 @@ type Config struct {
 	Server    string `json:"server"`
 	LastWorld string `json:"last_world"`
 
-	server api.Server // some server
+	server api.Server[*vrpaws.Me]
+	me     *vrpaws.Me
 }
 
 const (
@@ -65,7 +67,7 @@ var (
 	normalStyle = lipgloss.NewStyle().Italic(true)
 )
 
-func New(config *Config, server api.Server) *Model {
+func New(config *Config, server api.Server[*vrpaws.Me]) *Model {
 	var inputs []textinput.Model
 
 models:
@@ -116,6 +118,10 @@ models:
 	}
 
 	config.server = server
+	me, err := config.server.ValidToken(config.Token)
+	if err == nil {
+		config.me = me
+	}
 
 	return &Model{
 		config:  config,
@@ -221,13 +227,14 @@ func (m *Model) renderAll() string {
 }
 
 func (m *Model) render(i int) string {
-	var extra string
+	var prefix string
+	var suffix string
 	var title string
 	changed := func(b bool) {
 		if b {
 			m.inputs[i].TextStyle = successStyle
 		} else {
-			extra = disabledStyle.Strikethrough(false).Render("※ ")
+			prefix = disabledStyle.Strikethrough(false).Render("※ ")
 			m.inputs[i].TextStyle = normalStyle
 		}
 	}
@@ -246,14 +253,9 @@ func (m *Model) render(i int) string {
 		}
 	case token:
 		title = "Token"
-		if m.config.Token == m.inputs[i].Value() {
-			if m.config.server.ValidToken(m.config.Token) != nil {
-				m.inputs[i].TextStyle = errorStyle.Italic(true)
-			} else {
-				changed(true)
-			}
-		} else {
-			changed(false)
+		changed(m.config.Token == m.inputs[i].Value())
+		if m.config.me != nil {
+			suffix = fmt.Sprintf(" (%s)", m.config.me.User.Username)
 		}
 	case username:
 		title = "Username"
@@ -271,10 +273,11 @@ func (m *Model) render(i int) string {
 		return errorStyle.Bold(true).Render("Unknown input")
 	}
 
-	if extra != "" {
-		return extra + inputStyle.Width(64).Render(title) + "\n   " + m.inputs[i].View()
+	title = lipgloss.NewStyle().Width(64).Render(inputStyle.Render(title) + suffix)
+	if prefix != "" {
+		return prefix + title + "\n   " + m.inputs[i].View()
 	} else {
-		return "  " + inputStyle.Width(64).Render(title) + "\n   " + m.inputs[i].View()
+		return "  " + title + "\n   " + m.inputs[i].View()
 	}
 }
 
@@ -371,9 +374,6 @@ func (c *Config) SetPath(path string) {
 
 func (c *Config) SetUsername(username string) error {
 	c.Username = username
-	if err := c.server.ValidUser(username); err != nil {
-		return fmt.Errorf("username %q not found in remote userlist: %w", username, err)
-	}
 
 	if err := c.Save(); err != nil {
 		return fmt.Errorf("error writing config file: %w", err)
@@ -382,11 +382,13 @@ func (c *Config) SetUsername(username string) error {
 	return nil
 }
 
-func (c *Config) SetToken(username string) error {
-	c.Username = username
-	if err := c.server.ValidToken(username); err != nil {
-		return fmt.Errorf("token %q is not valid: %w", username, err)
+func (c *Config) SetToken(token string) error {
+	c.Token = token
+	me, err := c.server.ValidToken(token)
+	if err != nil {
+		return fmt.Errorf("token is not valid: %w", err)
 	}
+	c.me = me
 
 	if err := c.Save(); err != nil {
 		return fmt.Errorf("error writing config file: %w", err)

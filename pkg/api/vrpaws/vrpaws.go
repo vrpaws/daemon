@@ -3,10 +3,13 @@ package vrpaws
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
+	"path"
 	"time"
 
+	lib "vrc-moments/pkg"
 	"vrc-moments/pkg/flight"
 )
 
@@ -14,7 +17,7 @@ type VRPaws struct {
 	client      *http.Client
 	context     context.Context
 	accessToken string
-	tokenCache  flight.Cache[string, bool]
+	tokenCache  flight.Cache[string, *Me]
 	remote      *url.URL
 }
 
@@ -35,25 +38,47 @@ func NewVRPaws(remote *url.URL, ctx context.Context, token string) *VRPaws {
 	return v
 }
 
-func (s *VRPaws) ValidToken(token string) error {
-	valid, err := s.tokenCache.Get(token)
+func (s *VRPaws) ValidToken(token string) (*Me, error) {
+	me, err := s.tokenCache.Get(token)
 	if err != nil {
-		return err
-	}
-	if !valid {
-		return errors.New("token is not valid")
+		return nil, err
 	}
 
-	return errors.New("not yet implemented")
+	if me == nil || me.User.AccessToken != token {
+		return nil, errors.New("invalid token")
+	}
+
+	return me, nil
 }
 
-func (s *VRPaws) validToken(token string) (bool, error) {
-	return false, errors.New("not yet implemented")
-}
+func (s *VRPaws) validToken(token string) (*Me, error) {
+	if token == "" {
+		return nil, errors.New("invalid token")
+	}
 
-// Deprecated: username is not required, use ValidToken
-func (s *VRPaws) ValidUser(string) error {
-	return nil
+	u := *s.remote
+	u.Path = path.Join(u.Path, "users", "@me")
+
+	q := u.Query()
+	q.Add("accessToken", token)
+	u.RawQuery = q.Encode()
+
+	resp, err := s.client.Get(u.String())
+	if err != nil {
+		return nil, fmt.Errorf("error getting token response: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("get token request failed with status %s", resp.Status)
+	}
+
+	me, err := lib.Decode[*Me](resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("error decoding response from: %w", err)
+	}
+
+	return me, nil
 }
 
 func (s *VRPaws) SetRemote(remote string) error {
