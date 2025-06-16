@@ -154,6 +154,8 @@ func getPatterns(config *settings.Config) ([]string, error) {
 		}
 
 		config.Path = directory
+	} else {
+		config.Path = strings.TrimRight(config.Path, `*\/`+string(filepath.Separator))
 	}
 
 	prints := filepath.Join("!"+config.Path, "Prints", "***")
