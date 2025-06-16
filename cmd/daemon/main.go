@@ -154,13 +154,16 @@ func getPatterns(config *settings.Config) ([]string, error) {
 		}
 
 		config.Path = directory
-	} else {
+	}
+
+	if strings.HasSuffix(config.Path, "***") {
 		config.Path = strings.TrimRight(config.Path, `*\/`+string(filepath.Separator))
 	}
 
+	config.Path = strings.ReplaceAll(config.Path, `\`, "/")
 	prints := filepath.Join("!"+config.Path, "Prints", "***")
 	stickers := filepath.Join("!"+config.Path, "Stickers", "***")
-	config.Path = strings.ReplaceAll(filepath.Join(config.Path, "***"), `\`, "/")
+	config.Path = filepath.Join(config.Path, "***")
 
 	patterns, err := lib.ExpandPatterns(true, false, config.Path, prints, stickers)
 	if err != nil {
