@@ -44,6 +44,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.propagate(msg, &m.uploader)
 	case logger.Renderable:
 		return m.propagate(msg, &m.logger)
+	case []error:
+		return m, tea.Sequence(message.Cmds(msg...)...)
 	}
 
 	return m.propagate(msg)

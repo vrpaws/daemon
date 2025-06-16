@@ -25,7 +25,7 @@ func Invoke[T any](f func(tea.Msg)) func(T) {
 	}
 }
 
-func Cmds(v ...any) []tea.Cmd {
+func Cmds[T any](v ...T) []tea.Cmd {
 	if len(v) == 0 {
 		return nil
 	}

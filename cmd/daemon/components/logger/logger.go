@@ -15,7 +15,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"vrc-moments/cmd/daemon/components/message"
 	"vrc-moments/pkg/gradient"
 )
 
@@ -321,14 +320,8 @@ func (m *Logger) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.logWriter = msg
 		return m, nil
 	case error:
-		go log.Printf("%s: %v", errorStyle, msg)
-		return m, nil
-	case []error:
-		go func() {
-			for _, msg := range msg {
-				log.Printf("%s: %v", errorStyle, msg)
-			}
-		}()
+		m.messages = append(m.messages[1:], NewMessageTimef("%s: %v", errorStyle, msg))
+		m.writeToLog(fmt.Sprintf("ERROR: %v", msg))
 		return m, nil
 	case tea.WindowSizeMsg:
 		m.maxHeight = max(0, msg.Height-14)
@@ -363,8 +356,8 @@ func (m *Logger) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case Renderable:
 		m.messages = append(m.messages[1:], msg)
 		if msg.ShouldSave() {
-			_, err := m.logWriter.Write([]byte(strings.TrimRight(msg.Raw(), "\r\n") + "\n"))
-			return m, message.Cmd(err)
+			go m.writeToLog(msg.Raw())
+			return m, nil
 		}
 		return m, nil
 	case spinner.TickMsg:
@@ -388,20 +381,25 @@ func (m *Logger) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 }
 
-// resizeToHeight resizes the results slice to the given height, keeping old messages if they fit
-// Deprecated: use *Logger.getVisibleLogs
-func resizeToHeight(results []Message, i int) []Message {
-	if i < 0 {
-		return results
+func (m *Logger) writeToLog(v string) {
+	if m.logWriter == nil || m.logWriter == io.Discard {
+		msg := errorStyle.String() + ": trying to write to logWriter but program is not initialized!"
+		m.messages = append(m.messages, Message(msg))
+		log.Println(msg)
+		return
 	}
 
-	if i < len(results) {
-		return results[len(results)-i:]
+	v = strings.TrimRight(v, "\r\n")
+	_, err := m.logWriter.Write([]byte(time.Now().Format("2006/01/02 15:04:05 ") + v + "\n"))
+	if err != nil {
+		msg := fmt.Sprintf("%s: error writing to logWriter: %v", errorStyle, err)
+		log.Println(msg)
+		return
 	}
+}
 
-	newResults := make([]Message, i)
-	copy(newResults[i-len(results):], results)
-	return newResults
+func (m *Logger) writeToLogf(pattern string, a ...any) {
+	m.writeToLog(fmt.Sprintf(pattern, a...))
 }
 
 func (m *Logger) View() string {

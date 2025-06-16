@@ -72,7 +72,7 @@ func (m *Uploader) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		paths := m.watcher.Paths()
 		log.Printf("Watcher started with %d directories:", len(paths))
 		for i, path := range paths {
-			log.Printf("\t%s", path)
+			log.Printf("%s", path)
 			if i == 10 {
 				log.Printf("and %d more...", len(paths)-i)
 				break
