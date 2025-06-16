@@ -385,15 +385,14 @@ func (m *Logger) writeToLog(v string) {
 	if m.logWriter == nil || m.logWriter == io.Discard {
 		msg := errorStyle.String() + ": trying to write to logWriter but program is not initialized!"
 		m.messages = append(m.messages, Message(msg))
-		log.Println(msg)
+		log.Println("ERROR: trying to write to logWriter but program is not initialized!")
 		return
 	}
 
 	v = strings.TrimRight(v, "\r\n")
 	_, err := m.logWriter.Write([]byte(time.Now().Format("2006/01/02 15:04:05 ") + v + "\n"))
 	if err != nil {
-		msg := fmt.Sprintf("%s: error writing to logWriter: %v", errorStyle, err)
-		log.Println(msg)
+		log.Printf("ERROR: error writing to logWriter: %v", err)
 		return
 	}
 }
