@@ -188,8 +188,8 @@ func (m *Uploader) upload(event *fsnotify.Event) (*vrpaws.UploadResponse, error)
 							gradient.GreenPinkBlue,
 						)...,
 					),
-					OnClick: func() {
-						m.program.Send(browser.OpenURL("https://vrpa.ws/photo/" + response.Image))
+					OnClick: func() tea.Msg {
+						return browser.OpenURL("https://vrpa.ws/photo/" + response.Image)
 					},
 					Prefix: response.Image,
 				},

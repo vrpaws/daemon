@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	zone "github.com/lrstanley/bubblezone"
 
@@ -20,11 +21,11 @@ type Renderable interface {
 
 type Anchor struct {
 	Message Renderable
-	OnClick func()
+	OnClick tea.Cmd
 	Prefix  string
 }
 
-func NewAnchor(message Renderable, callback func(), prefix string) Anchor {
+func NewAnchor(message Renderable, callback tea.Cmd, prefix string) Anchor {
 	if prefix == "" {
 		prefix = zone.NewPrefix() + message.Raw()
 	}

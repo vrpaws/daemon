@@ -44,7 +44,7 @@ type Logger struct {
 	height    int
 	last      int
 
-	callbacks map[string]func()
+	callbacks map[string]tea.Cmd
 	logWriter io.Writer
 }
 
@@ -60,7 +60,7 @@ func NewLogger() *Logger {
 			messages: make([]Renderable, numLastResults),
 			last:     -1,
 
-			callbacks: make(map[string]func()),
+			callbacks: make(map[string]tea.Cmd),
 			logWriter: io.Discard,
 		}
 	}
@@ -90,7 +90,7 @@ func (m *Logger) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Button == tea.MouseButtonLeft {
 			for prefix, callback := range m.callbacks {
 				if zone.Get(prefix).InBounds(msg) {
-					callback()
+					return m, callback
 				}
 			}
 		}
