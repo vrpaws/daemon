@@ -227,9 +227,11 @@ func (m *Model) renderAll() string {
 }
 
 func (m *Model) render(i int) string {
-	var prefix string
-	var suffix string
-	var title string
+	var (
+		prefix string = "  "
+		suffix string
+		title  string
+	)
 	changed := func(b bool) {
 		if b {
 			m.inputs[i].TextStyle = successStyle
@@ -274,11 +276,7 @@ func (m *Model) render(i int) string {
 	}
 
 	title = lipgloss.NewStyle().Width(64).Render(inputStyle.Render(title) + suffix)
-	if prefix != "" {
-		return prefix + title + "\n   " + m.inputs[i].View()
-	} else {
-		return "  " + title + "\n   " + m.inputs[i].View()
-	}
+	return prefix + title + "\n   " + m.inputs[i].View()
 }
 
 func urlValidator(s string) error {
