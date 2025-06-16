@@ -32,8 +32,8 @@ type Uploader struct {
 	config  *settings.Config
 	program *tea.Program
 
-	uploadFlight flight.Cache[*fsnotify.Event, *vrpaws.UploadResponse]
-	queue        worker.Pool[*fsnotify.Event, error]
+	uploadFlight flight.Cache[string, *vrpaws.UploadResponse]
+	queue        worker.Pool[string, error]
 
 	server api.Server[*vrpaws.Me, *vrpaws.UploadResponse]
 }
@@ -45,8 +45,8 @@ func NewModel(ctx context.Context, config *settings.Config, server *vrpaws.Serve
 		server: server,
 	}
 	uploader.uploadFlight = flight.NewCache(uploader.upload)
-	uploader.queue = worker.NewPool(runtime.NumCPU(), func(event *fsnotify.Event) error {
-		_, err := uploader.uploadFlight.Get(event)
+	uploader.queue = worker.NewPool(runtime.NumCPU(), func(path string) error {
+		_, err := uploader.uploadFlight.Get(path)
 		return err
 	})
 
@@ -121,17 +121,19 @@ func (m *Uploader) async(event *fsnotify.Event) func() tea.Msg {
 		}
 
 		// TODO: try to match with settings.Config.Path
-		if !strings.HasSuffix(filepath.Base(event.Name), "VRChat") || !strings.HasSuffix(event.Name, ".png") {
+		if !strings.HasPrefix(filepath.Base(event.Name), "VRChat") || !strings.HasSuffix(event.Name, ".png") {
 			return nil
 		}
 
+		dir, file := filepath.Split(event.Name)
+		folder := filepath.Base(dir)
 		switch {
 		case event.Op.Has(fsnotify.Create):
-			dir, file := filepath.Split(event.Name)
-			folder := filepath.Base(dir)
 			return logger.NewMessageTimef("A new photo was taken at %s", filepath.Join(folder, file))
+		case event.Op.Has(fsnotify.Rename):
+			return logger.NewMessageTimef("A new photo was moved to %s", filepath.Join(folder, file))
 		case event.Op.Has(fsnotify.Write):
-			return <-m.queue.Promise(event)
+			return <-m.queue.Promise(event.Name)
 		default:
 			return nil
 		}
@@ -139,14 +141,14 @@ func (m *Uploader) async(event *fsnotify.Event) func() tea.Msg {
 }
 
 // the actual upload function
-func (m *Uploader) upload(event *fsnotify.Event) (*vrpaws.UploadResponse, error) {
+func (m *Uploader) upload(path string) (*vrpaws.UploadResponse, error) {
 	if m.program == nil {
 		return nil, errors.New("upload: program not yet initialized")
 	}
 
-	f, err := api.OpenFile(event.Name)
+	f, err := api.OpenFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("opening %s: %w", event.Name, err)
+		return nil, fmt.Errorf("opening %s: %w", path, err)
 	}
 
 	payload := api.UploadPayload{

@@ -150,14 +150,15 @@ func (w *Watcher) Watch() error {
 					return
 				}
 
-				if event.Has(fsnotify.Create) {
+				switch {
+				case event.Has(fsnotify.Create), event.Has(fsnotify.Rename):
 					w.work(&event)
-					continue
+					c := event
+					c.Op = fsnotify.Write
+					w.scheduleDebouncedWork(&c)
+				case event.Has(fsnotify.Write):
+					w.scheduleDebouncedWork(&event)
 				}
-				if !event.Has(fsnotify.Write) {
-					continue
-				}
-				w.scheduleDebouncedWork(&event)
 			case err, ok := <-w.watcher.Errors:
 				if !ok {
 					return
