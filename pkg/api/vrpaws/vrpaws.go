@@ -60,7 +60,13 @@ func (s *Server) validToken(token string) (*Me, error) {
 	q.Add("accessToken", token)
 	u.RawQuery = q.Encode()
 
-	resp, err := s.client.Get(u.String())
+	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("error creating request: %w", err)
+	}
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := s.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("error getting token response: %w", err)
 	}
