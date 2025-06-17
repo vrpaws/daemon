@@ -39,14 +39,14 @@ func ExtractUsernameFromLogs(logDir string) (string, error) {
 	if logDir == "" {
 		logDir = DefaultLogPath
 	}
-	return ExtractReader(logDir, Scanner, usernameRegex)
+	return ExtractReader(logDir, false, usernameRegex)
 }
 
 func ExtractCurrentRoomName(logDir string) (string, error) {
 	if logDir == "" {
 		logDir = DefaultLogPath
 	}
-	return ExtractReader(logDir, ReverseLines, roomNameRegex)
+	return ExtractReader(logDir, true, roomNameRegex)
 }
 
 type logFile struct {
@@ -54,7 +54,7 @@ type logFile struct {
 	time time.Time
 }
 
-func ExtractReader(logDir string, scanner func(io.ReadSeeker) iter.Seq2[string, error], match *regexp.Regexp) (string, error) {
+func ExtractReader(logDir string, reverse bool, match *regexp.Regexp) (string, error) {
 	pattern := filepath.Join(logDir, "output_log_*.txt")
 
 	logFiles, err := filepath.Glob(pattern)
@@ -94,11 +94,21 @@ func ExtractReader(logDir string, scanner func(io.ReadSeeker) iter.Seq2[string, 
 			return "", fmt.Errorf("failed to read file %s: %w\n", l.path, err)
 		}
 
-		for line := range scanner(file) {
-			matches := match.FindStringSubmatch(line)
-			if len(matches) > 1 {
-				file.Close()
-				return matches[1], nil
+		if reverse {
+			for line := range ReverseLines(file) {
+				matches := match.FindSubmatch(line)
+				if len(matches) > 1 {
+					file.Close()
+					return string(matches[1]), nil
+				}
+			}
+		} else {
+			for line := range Scanner(file) {
+				matches := match.FindStringSubmatch(line)
+				if len(matches) > 1 {
+					file.Close()
+					return matches[1], nil
+				}
 			}
 		}
 
@@ -131,13 +141,13 @@ func Scanner(r io.ReadSeeker) iter.Seq2[string, error] {
 // in reverse order (last line first). Lines are returned without
 // trailing newline or carriage-return bytes. If a seek or read
 // error occurs, iteration stops silently.
-func ReverseLines(rs io.ReadSeeker) iter.Seq2[string, error] {
-	return func(yield func(string, error) bool) {
+func ReverseLines(rs io.ReadSeeker) iter.Seq2[[]byte, error] {
+	return func(yield func([]byte, error) bool) {
 		defer rs.Seek(0, io.SeekStart)
 
 		size, err := rs.Seek(0, io.SeekEnd)
 		if err != nil {
-			yield("", err)
+			yield(nil, err)
 			return
 		}
 
@@ -157,7 +167,7 @@ func ReverseLines(rs io.ReadSeeker) iter.Seq2[string, error] {
 				}
 				// skip empty
 				if len(line) > 0 {
-					if !yield(string(line), nil) {
+					if !yield(line, nil) {
 						return
 					}
 				}
@@ -172,7 +182,7 @@ func ReverseLines(rs io.ReadSeeker) iter.Seq2[string, error] {
 						line = line[:len(line)-1]
 					}
 					if len(line) > 0 {
-						yield(string(line), nil)
+						yield(line, nil)
 					}
 				}
 				return
@@ -180,18 +190,18 @@ func ReverseLines(rs io.ReadSeeker) iter.Seq2[string, error] {
 
 			// back up by chunkSize (or to zero)
 			readSize := chunkSize
-			if pos < int64(chunkSize) {
+			if pos < int64(readSize) {
 				readSize = int(pos)
 			}
 			pos -= int64(readSize)
 
 			if _, err = rs.Seek(pos, io.SeekStart); err != nil {
-				yield("", err)
+				yield(nil, err)
 				return
 			}
 			n, err := rs.Read(buf[:readSize])
 			if err != nil && err != io.EOF && !errors.Is(err, io.ErrUnexpectedEOF) {
-				yield("", err)
+				yield(nil, err)
 				return
 			}
 			if n == 0 {
