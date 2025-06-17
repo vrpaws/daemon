@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
-import { Camera, Home, Settings, LogIn } from "lucide-react"
+import { Camera, Home, LogIn, Settings } from "lucide-react"
 import Link from "next/link"
 import type { LoginSuccessProps } from "./types/login-success"
 import { HeroBackground } from "./components/kokonutui/hero-background"
@@ -18,7 +18,7 @@ export default function Component({
                                     subtitleLabel = "You can now close this window.",
                                     photosUrl = "https://vrpa.ws/my-photos",
                                     settingsUrl = "https://vrpa.ws/settings",
-                                    supportUrl = "/support",
+                                    supportUrl = "#",
                                     photosLabel = "My Photos",
                                     settingsLabel = "Account Settings",
                                     supportText = "Contact Support",
@@ -93,15 +93,16 @@ export default function Component({
           margin: 1px;
         }
       `}</style>
-      <HeroBackground />
-      <FloatingShapes />
+      <HeroBackground/>
+      <FloatingShapes/>
 
       <div className="relative z-10 w-full flex flex-col items-center">
         <div className="max-w-3xl z-10 mx-auto text-center translate-y-4">
-          <HeroTitle title1="Welcome to" title2={title} />
+          <HeroTitle title1="Welcome to" title2={title}/>
         </div>
 
-        <Card className="w-full sm:w-[420px] md:w-[480px] lg:w-[520px] xl:w-[600px] backdrop-blur-md bg-white/10 border border-white/20 shadow-2xl">
+        <Card
+          className="w-full sm:w-[420px] md:w-[480px] lg:w-[520px] xl:w-[600px] backdrop-blur-md bg-white/10 border border-white/20 shadow-2xl">
           <CardContent className="space-y-4">
             <CardHeader className="text-center">
               <HeroDescription
@@ -113,7 +114,7 @@ export default function Component({
             {hasAccessToken ? (
               <>
                 <div className="text-center">
-                  <HeroDescription text={subtitleLabel} delay={0.6} />
+                  <HeroDescription text={subtitleLabel} delay={0.6}/>
                 </div>
 
                 <div className="grid gap-3">
@@ -122,7 +123,7 @@ export default function Component({
                     className="w-full bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white border-0 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200"
                   >
                     <Link href={streamUrl} className="flex items-center justify-center relative">
-                      <Home className="absolute left-4 h-4 w-4" />
+                      <Home className="absolute left-4 h-4 w-4"/>
                       <span className="text-center">{streamLabel}</span>
                     </Link>
                   </Button>
@@ -135,7 +136,7 @@ export default function Component({
                         className="w-full border-0 bg-black hover:bg-black text-white hover:text-white font-medium transition-all duration-200"
                       >
                         <Link href={photosUrl} className="flex items-center justify-center">
-                          <Camera className="absolute left-4 h-4 w-4 text-blue-300" />
+                          <Camera className="absolute left-4 h-4 w-4 text-blue-300"/>
                           <span className="text-center">{photosLabel}</span>
                         </Link>
                       </Button>
@@ -150,7 +151,7 @@ export default function Component({
                         className="w-full border-0 bg-black hover:bg-black text-white hover:text-white font-medium transition-all duration-200"
                       >
                         <Link href={settingsUrl} className="flex items-center justify-center">
-                          <Settings className="absolute left-4 h-4 w-4 text-teal-300" />
+                          <Settings className="absolute left-4 h-4 w-4 text-teal-300"/>
                           <span className="text-center">{settingsLabel}</span>
                         </Link>
                       </Button>
@@ -165,7 +166,7 @@ export default function Component({
                   className="w-full bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white border-0 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200"
                 >
                   <Link href={loginUrl} className="flex items-center justify-center relative">
-                    <LogIn className="absolute left-4 h-4 w-4" />
+                    <LogIn className="absolute left-4 h-4 w-4"/>
                     <span className="text-center">Log in</span>
                   </Link>
                 </Button>

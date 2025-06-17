@@ -24,6 +24,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+    <head>
+      <title>VRPaws</title>
+      <meta name="color-scheme" content="dark light"/>
+      <meta name="supported-color-schemes" content="dark light"/>
+    </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
