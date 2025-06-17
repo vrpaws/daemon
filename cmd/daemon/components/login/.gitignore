@@ -1,0 +1,10 @@
+# config
+!*.txt
+!*.json
+
+# images
+!*.png
+!*.jpg
+!*.jpeg
+!*.gif
+!*.webp
