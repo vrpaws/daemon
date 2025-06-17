@@ -45,20 +45,16 @@ var (
 				SetString("Login to VRPaws")
 )
 
-//go:embed all:login/out/*
-var login embed.FS
-
 //go:embed all:success/out/*
 var success embed.FS
 
 type Model struct {
-	config    *settings.Config
-	server    api.Server[*vrpaws.Me, *vrpaws.UploadResponse]
-	program   *tea.Program
-	local     *http.Server
-	loginFS   http.Handler
-	successFS http.Handler
-	me        *vrpaws.Me
+	config  *settings.Config
+	server  api.Server[*vrpaws.Me, *vrpaws.UploadResponse]
+	program *tea.Program
+	local   *http.Server
+	loginFS http.Handler
+	me      *vrpaws.Me
 
 	button lipgloss.Style
 
@@ -67,24 +63,17 @@ type Model struct {
 }
 
 func New(config *settings.Config, server *vrpaws.Server) *Model {
-	loginFS, err := fs.Sub(login, "login/out")
+	loginFS, err := fs.Sub(success, "success/out")
 	if err != nil {
 		log.Fatal(err)
 	}
 	loginHandler := http.FileServer(http.FS(loginFS))
 
-	successFS, err := fs.Sub(success, "success/out")
-	if err != nil {
-		log.Fatal(err)
-	}
-	successHandler := http.FileServer(http.FS(successFS))
-
 	return &Model{
-		config:    config,
-		server:    server,
-		loginFS:   loginHandler,
-		successFS: successHandler,
-		button:    buttonStyle,
+		config:  config,
+		server:  server,
+		loginFS: loginHandler,
+		button:  buttonStyle,
 	}
 }
 
@@ -214,13 +203,9 @@ func (m *Model) login() tea.Msg {
 			} else {
 				m.program.Send(err)
 			}
-
-			m.successFS.ServeHTTP(w, r)
-		} else if m.me != nil {
-			m.successFS.ServeHTTP(w, r)
-		} else {
-			m.loginFS.ServeHTTP(w, r)
 		}
+
+		m.loginFS.ServeHTTP(w, r)
 	})
 
 	m.local = &http.Server{

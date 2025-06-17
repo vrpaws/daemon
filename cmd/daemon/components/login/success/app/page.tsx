@@ -1,9 +1,9 @@
+import { Suspense } from "react"
 import Component from "../login-success"
 
-export default function Page() {
+function LoginSuccessPage() {
   return (
     <Component
-      title="Welcome to VRPaws!"
       description="Connect, share, and relive your VRChat moments with friends."
       subtitleLabel="You can now close this window."
       streamLabel="Stream"
@@ -11,5 +11,13 @@ export default function Page() {
       settingsLabel="Settings"
       supportText="Contact Support"
     />
+  )
+}
+
+export default function Page() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <LoginSuccessPage />
+    </Suspense>
   )
 }
