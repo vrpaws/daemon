@@ -133,7 +133,8 @@ func Scanner(r io.ReadSeeker) iter.Seq2[string, error] {
 // error occurs, iteration stops silently.
 func ReverseLines(rs io.ReadSeeker) iter.Seq2[string, error] {
 	return func(yield func(string, error) bool) {
-		// Find total size
+		defer rs.Seek(0, io.SeekStart)
+
 		size, err := rs.Seek(0, io.SeekEnd)
 		if err != nil {
 			yield("", err)
@@ -142,58 +143,61 @@ func ReverseLines(rs io.ReadSeeker) iter.Seq2[string, error] {
 
 		const chunkSize = 4096
 		buf := make([]byte, chunkSize)
-		var (
-			pos   = size // current read position
-			carry []byte // accumulated bytes not yet split into a line
-		)
+		pos, carry := size, make([]byte, 0, chunkSize)
 
 		for {
-			// If carry contains a '\n', split out the last line.
+			// if we have a newline, pull out the last line
 			if idx := bytes.LastIndexByte(carry, '\n'); idx >= 0 {
 				line := carry[idx+1:]
 				carry = carry[:idx]
-				// Strip trailing '\r' if present (for CRLF)
+
+				// strip trailing CR
 				if len(line) > 0 && line[len(line)-1] == '\r' {
 					line = line[:len(line)-1]
 				}
-				if !yield(string(line), nil) {
-					return
+				// skip empty
+				if len(line) > 0 {
+					if !yield(string(line), nil) {
+						return
+					}
 				}
 				continue
 			}
 
-			// No more data to read before start of file?
+			// reached start of file
 			if pos == 0 {
-				// Whatever remains is the first line
 				if len(carry) > 0 {
 					line := carry
 					if line[len(line)-1] == '\r' {
 						line = line[:len(line)-1]
 					}
-					yield(string(line), nil)
+					if len(line) > 0 {
+						yield(string(line), nil)
+					}
 				}
 				return
 			}
 
-			// Move back by chunkSize (or to 0)
+			// back up by chunkSize (or to zero)
 			readSize := chunkSize
 			if pos < int64(chunkSize) {
 				readSize = int(pos)
 			}
 			pos -= int64(readSize)
 
-			// Seek and read
 			if _, err = rs.Seek(pos, io.SeekStart); err != nil {
 				yield("", err)
 				return
 			}
-			n, err2 := rs.Read(buf[:readSize])
-			if err2 != nil && err2 != io.EOF {
-				yield("", err2)
+			n, err := rs.Read(buf[:readSize])
+			if err != nil && err != io.EOF && !errors.Is(err, io.ErrUnexpectedEOF) {
+				yield("", err)
 				return
 			}
+			if n == 0 {
+				return // nothing more to read
+			}
 
-			// Prepend to carry for next split
 			carry = append(buf[:n], carry...)
 		}
 	}
