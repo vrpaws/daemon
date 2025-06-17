@@ -11,6 +11,7 @@ import (
 	"vrc-moments/cmd/daemon/components/logger"
 	"vrc-moments/cmd/daemon/components/message"
 	"vrc-moments/pkg/api"
+	"vrc-moments/pkg/api/vrpaws"
 )
 
 func (m *Model) Init() tea.Cmd {
@@ -44,6 +45,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.propagate(msg, &m.uploader)
 	case logger.Renderable:
 		return m.propagate(msg, &m.logger)
+	case *vrpaws.Me:
+		m.me = msg
+		return m.propagate(msg)
 	case []error:
 		return m, tea.Sequence(message.Cmds(msg...)...)
 	}

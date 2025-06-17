@@ -27,6 +27,10 @@ func (m *Model) Render() string {
 		m.settings.View,
 	}
 
+	if m.me == nil {
+		renderers = []Renderer{m.login.View}
+	}
+
 	return zone.Scan(lipgloss.JoinVertical(
 		lipgloss.Left,
 		lipgloss.PlaceHorizontal(m.window.Width, lipgloss.Left, top.Render()),

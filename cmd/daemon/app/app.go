@@ -28,6 +28,7 @@ type Model struct {
 
 	ctx    context.Context
 	server *vrpaws.Server
+	me     *vrpaws.Me
 
 	login    tea.Model
 	tabs     tea.Model

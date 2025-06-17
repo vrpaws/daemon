@@ -12,12 +12,37 @@ import (
 	"net/url"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	zone "github.com/lrstanley/bubblezone"
 	"github.com/pkg/browser"
 
 	"vrc-moments/cmd/daemon/components/message"
 	"vrc-moments/cmd/daemon/components/settings"
 	"vrc-moments/pkg/api"
 	"vrc-moments/pkg/api/vrpaws"
+)
+
+var (
+	subtle    = lipgloss.AdaptiveColor{Light: "#D9DCCF", Dark: "#383838"}
+	highlight = lipgloss.AdaptiveColor{Light: "#874BFD", Dark: "#7D56F4"}
+	special   = lipgloss.AdaptiveColor{Light: "#43BF6D", Dark: "#73F59F"}
+
+	buttonStyle = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(highlight).
+			Padding(0, 1).
+			Margin(1, 0).
+			SetString("Login to VRPaws")
+
+	buttonHoverStyle = buttonStyle.
+				BorderForeground(special).
+				Foreground(special).
+				SetString("Login to VRPaws")
+
+	buttonClickStyle = buttonStyle.
+				BorderForeground(highlight).
+				Foreground(highlight).
+				SetString("Login to VRPaws")
 )
 
 //go:embed all:login/out/*
@@ -34,6 +59,11 @@ type Model struct {
 	loginFS   http.Handler
 	successFS http.Handler
 	me        *vrpaws.Me
+
+	button lipgloss.Style
+
+	width  int
+	height int
 }
 
 func New(config *settings.Config, server *vrpaws.Server) *Model {
@@ -54,8 +84,14 @@ func New(config *settings.Config, server *vrpaws.Server) *Model {
 
 func (m *Model) Init() tea.Cmd {
 	return func() tea.Msg {
-		if m.me == nil && m.config.Token == "" || m.config.Token == "Unset" {
-			return m.login()
+		if m.me == nil {
+			if user, err := m.server.ValidToken(m.config.Token); err == nil {
+				return user
+			}
+
+			if m.config.Token == "" || m.config.Token == "Unset" {
+				return m.login()
+			}
 		}
 		return nil
 	}
@@ -71,12 +107,54 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case *vrpaws.Me:
 		m.me = msg
 		return m, nil
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+		return m, nil
+	case tea.MouseMsg:
+		switch msg.Action {
+		case tea.MouseActionPress:
+			if msg.Button != tea.MouseButtonLeft {
+				return m, nil
+			}
+			if zone.Get("login-button").InBounds(msg) {
+				m.button = buttonClickStyle
+				return m, nil
+			}
+		case tea.MouseActionRelease:
+			if zone.Get("login-button").InBounds(msg) {
+				m.button = buttonHoverStyle
+			} else {
+				m.button = buttonStyle
+			}
+			if msg.Button == tea.MouseButtonLeft {
+				if zone.Get("login-button").InBounds(msg) {
+					m.button = buttonClickStyle
+					return m, m.login
+				}
+			}
+		case tea.MouseActionMotion:
+			if zone.Get("login-button").InBounds(msg) {
+				m.button = buttonHoverStyle
+			} else {
+				m.button = buttonStyle
+			}
+		}
 	}
 	return m, nil
 }
 
 func (m *Model) View() string {
-	return "Launching login page...\n"
+	if m.me != nil {
+		return "Logged in as " + m.me.User.Username + "\n"
+	}
+
+	loginButton := zone.Mark("login-button", m.button.Render())
+	return lipgloss.PlaceVertical(m.height-12, lipgloss.Center,
+		lipgloss.JoinVertical(lipgloss.Center,
+			"Welcome to VRPaws Client!",
+			loginButton,
+		))
 }
 
 func isLocalhostAccessible() bool {
@@ -150,7 +228,7 @@ func (m *Model) login() tea.Msg {
 	}()
 
 	connectURL := fmt.Sprintf(
-		"https://vrpa.ws/client/connect?redirect_url=%s&service_name=%s",
+		"http://vrpa.ws/client/connect?redirect_url=%s&service_name=%s",
 		url.QueryEscape(redirectURL),
 		"vrpaws-client",
 	)
