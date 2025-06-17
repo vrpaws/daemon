@@ -79,7 +79,13 @@ func New(config *settings.Config, server *vrpaws.Server) *Model {
 	}
 	successHandler := http.FileServer(http.FS(successFS))
 
-	return &Model{config: config, server: server, loginFS: loginHandler, successFS: successHandler}
+	return &Model{
+		config:    config,
+		server:    server,
+		loginFS:   loginHandler,
+		successFS: successHandler,
+		button:    buttonStyle,
+	}
 }
 
 func (m *Model) Init() tea.Cmd {
