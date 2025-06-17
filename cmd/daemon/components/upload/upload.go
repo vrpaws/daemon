@@ -181,16 +181,21 @@ func (m *Uploader) upload(path string) (*vrpaws.UploadResponse, error) {
 		})
 		m.program.Send(logger.Concat{
 			Items: []logger.Renderable{
-				logger.NewMessageTime("https://vrpa.ws/photo/"),
+				logger.NewMessageTime(""),
 				logger.Anchor{
-					Message: logger.NewGradientString(response.Image, time.Second,
-						lib.Random(
-							gradient.BlueGreenYellow,
-							gradient.PastelRainbow,
-							gradient.PastelGreenBlue,
-							gradient.GreenPinkBlue,
-						)...,
-					),
+					Message: logger.Concat{
+						Items: []logger.Renderable{
+							logger.Message("https://vrpa.ws/photo/"),
+							logger.NewGradientString(response.Image, time.Second,
+								lib.Random(
+									gradient.BlueGreenYellow,
+									gradient.PastelRainbow,
+									gradient.PastelGreenBlue,
+									gradient.GreenPinkBlue,
+								)...,
+							),
+						},
+					},
 					OnClick: func() tea.Msg {
 						return browser.OpenURL("https://vrpa.ws/photo/" + response.Image)
 					},
