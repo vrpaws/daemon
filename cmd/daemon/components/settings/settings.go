@@ -12,6 +12,8 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	zone "github.com/lrstanley/bubblezone"
+	"github.com/sqweek/dialog"
 
 	"vrc-moments/cmd/daemon/components/logger"
 	"vrc-moments/cmd/daemon/components/message"
@@ -56,6 +58,8 @@ const (
 	lightGrey   = lipgloss.Color("#D3D3D3")
 	pastelGreen = lipgloss.Color("#6A994E")
 	darkGray    = lipgloss.Color("#767676")
+	highlight   = lipgloss.Color("#874BFD")
+	special     = lipgloss.Color("#43BF6D")
 )
 
 var (
@@ -67,6 +71,20 @@ var (
 	continueStyle = lipgloss.NewStyle().Foreground(darkGray)
 
 	normalStyle = lipgloss.NewStyle().Italic(true)
+
+	browseStyle = lipgloss.NewStyle().
+			Foreground(highlight).
+			Padding(0, 1).
+			Margin(0, 0, 0, 1).
+			SetString("Browse")
+
+	browseHoverStyle = browseStyle.
+				Foreground(special).
+				SetString("Browse")
+
+	browseClickStyle = browseStyle.
+				Foreground(highlight).
+				SetString("Browse")
 )
 
 func New(config *Config, server *vrpaws.Server) *Model {
@@ -188,6 +206,40 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.inputs[i].Blur()
 			}
 		}
+	case tea.MouseMsg:
+		switch msg.Action {
+		case tea.MouseActionPress:
+			if msg.Button != tea.MouseButtonLeft {
+				return m, nil
+			}
+			if zone.Get("browse-button").InBounds(msg) {
+				browseStyle = browseClickStyle
+				return m, nil
+			}
+		case tea.MouseActionRelease:
+			if zone.Get("browse-button").InBounds(msg) {
+				browseStyle = browseHoverStyle
+				if msg.Button == tea.MouseButtonLeft {
+					return m, m.browseDirectory
+				}
+			} else {
+				browseStyle = lipgloss.NewStyle().
+					Foreground(highlight).
+					Padding(0, 1).
+					Margin(0, 0, 0, 1).
+					SetString("Browse")
+			}
+		case tea.MouseActionMotion:
+			if zone.Get("browse-button").InBounds(msg) {
+				browseStyle = browseHoverStyle
+			} else {
+				browseStyle = lipgloss.NewStyle().
+					Foreground(highlight).
+					Padding(0, 1).
+					Margin(0, 0, 0, 1).
+					SetString("Browse")
+			}
+		}
 	case error:
 		m.err = msg
 		return m, nil
@@ -278,6 +330,8 @@ func (m *Model) render(i int) string {
 	case path:
 		title = "Path"
 		changed(m.config.Path == m.inputs[i].Value())
+		browseButton := zone.Mark("browse-button", browseStyle.Render())
+		suffix = browseButton
 	case submit:
 		if m.focused == len(m.inputs) {
 			return submitStyle.Render("Press Enter to save ->")
@@ -442,4 +496,30 @@ func (m *Model) Poll() tea.Cmd {
 
 		return message.RoomSet(roomName)
 	})
+}
+
+func (m *Model) browseDirectory() tea.Msg {
+	dir, patterns, err := lib.SelectVRChatDirectory(m.config.Path)
+	if err != nil && !errors.Is(err, dialog.ErrCancelled) {
+		return err
+	}
+
+	log.Printf("Changed directory to %s with %d directories:", dir, len(patterns))
+	for i, path := range patterns {
+		log.Printf("%s", path)
+		if i == 10 {
+			log.Printf("and %d more...", len(patterns)-i)
+			break
+		}
+	}
+
+	m.inputs[path].SetValue(dir)
+	m.inputs[path].Placeholder = dir
+	m.config.Path = dir
+	return tea.Batch(
+		message.Cmd(message.PathSet(dir)),
+		message.Cmd(message.PatternsSet(patterns)),
+		m.save(),
+		message.Callback(m.config.Save),
+	)
 }

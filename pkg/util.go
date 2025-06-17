@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 	"unicode"
+
+	"github.com/sqweek/dialog"
 )
 
 var ConfigDirectory string
@@ -154,4 +156,41 @@ func LogOutput(writer io.Writer) (io.Writer, func()) {
 			_ = os.Remove(logfile)
 		}
 	}
+}
+
+func SelectVRChatDirectory(path string) (string, []string, error) {
+	startDir := "."
+	homedir, err := os.UserHomeDir()
+	if err == nil {
+		if path != "" && FileExists(path) {
+			startDir = path
+		} else if vrcDefault := filepath.Join(homedir, "Pictures", "VRChat"); FileExists(vrcDefault) {
+			startDir = vrcDefault
+		}
+	}
+
+	directory, err := dialog.Directory().SetStartDir(startDir).Title("Choose your VRChat Photos folder").Browse()
+	if err != nil {
+		return "", nil, fmt.Errorf("error getting directory: %w", err)
+	}
+
+	if strings.HasPrefix(directory, homedir) {
+		directory = filepath.Join("~", strings.TrimPrefix(directory, homedir))
+	}
+
+	if strings.HasSuffix(directory, "***") {
+		directory = strings.TrimRight(directory, `*\/`+string(filepath.Separator))
+	}
+
+	prints := filepath.Join("!"+directory, "Prints", "***")
+	stickers := filepath.Join("!"+directory, "Stickers", "***")
+	directory = filepath.Join(directory, "***")
+	directory = strings.ReplaceAll(directory, `\`, "/")
+
+	patterns, err := ExpandPatterns(true, false, directory, prints, stickers)
+	if err != nil {
+		return "", nil, err
+	}
+
+	return directory, patterns, nil
 }
