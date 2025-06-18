@@ -198,6 +198,24 @@ func (m Tabs) View() string {
 	return row
 }
 
+func (m Tabs) Login() string {
+	if m.out == nil {
+		m.out = make([]string, len(m.items)+1)
+	}
+
+	m.out[0] = normalTab.Render(m.spinner.View())
+	for i, item := range m.items {
+		m.out[i+1] = zone.Mark(item.prefix, item.style.Border(activeTabBorder, true).Render("Login"))
+		break
+	}
+
+	row := lipgloss.JoinHorizontal(lipgloss.Top, m.out...)
+	username := activeTab.Render(m.extra)
+	gap := tabGap.Render(strings.Repeat(" ", max(0, m.width-calculateWidths(row, username))))
+	row = lipgloss.JoinHorizontal(lipgloss.Bottom, row, gap, username)
+	return row
+}
+
 func calculateWidths(items ...string) int {
 	var total int
 	for _, item := range items {
