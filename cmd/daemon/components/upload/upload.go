@@ -146,6 +146,10 @@ func (m *Uploader) upload(path string) (*vrpaws.UploadResponse, error) {
 		return nil, errors.New("upload: program not yet initialized")
 	}
 
+	if m.config.Token == "" {
+		return nil, errors.New("upload: token not yet initialized")
+	}
+
 	f, err := api.OpenFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("opening %s: %w", path, err)
