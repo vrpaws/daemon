@@ -15,23 +15,20 @@ func (m *Model) View() string {
 func (m *Model) Render() string {
 	top := stick.New(m.window.Width, 3)
 
-	row := top.NewRow()
-	if m.me == nil {
-		row.AddCells(stick.NewCell(1, 1).SetContent(m.tabs.(tabs.Tabs).Login()))
-	} else {
-		row.AddCells(stick.NewCell(1, 1).SetContent(m.tabs.View()))
-	}
-	top.SetRows([]*stick.Row{row})
-
 	var renderers = []Renderer{
 		m.logger.View,
 		m.uploader.View,
 		m.settings.View,
 	}
 
+	row := top.NewRow()
 	if m.me == nil {
+		row.AddCells(stick.NewCell(1, 1).SetContent(m.tabs.(tabs.Tabs).Login()))
 		renderers = []Renderer{m.login.View}
+	} else {
+		row.AddCells(stick.NewCell(1, 1).SetContent(m.tabs.View()))
 	}
+	top.SetRows([]*stick.Row{row})
 
 	return zone.Scan(lipgloss.JoinVertical(
 		lipgloss.Left,
