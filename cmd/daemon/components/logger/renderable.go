@@ -242,6 +242,45 @@ func (r *GradientString) Raw() string {
 	return r.Message
 }
 
+type StaticString struct {
+	Message string
+	Width   int
+	Colors  []string
+	Save    bool
+
+	pre string
+}
+
+func NewStaticString(message string, colors ...string) *StaticString {
+	str := &StaticString{
+		Message: message,
+		Width:   lipgloss.Width(message),
+		Colors:  colors,
+		pre:     gradient.Static(message, colors...),
+	}
+
+	return str
+}
+
+func (r *StaticString) String(maxWidth int) (string, int) {
+	if r.pre == "" && lipgloss.Width(r.Message) > 0 {
+		r.pre = gradient.Static(r.Message, r.Colors...)
+	}
+	return render(r.pre, maxWidth)
+}
+
+func (r *StaticString) Len() int {
+	return r.Width
+}
+
+func (r *StaticString) ShouldSave() bool {
+	return false
+}
+
+func (r *StaticString) Raw() string {
+	return r.Message
+}
+
 func render(text string, maxWidth int) (string, int) {
 	if lipgloss.Width(text) <= maxWidth {
 		return text, 1

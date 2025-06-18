@@ -165,7 +165,16 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(
 			m.save(),
 			message.Callback(m.config.Save),
-			message.Cmd(logger.NewMessageTimef("Sucessfully logged in to vrpaws as %s", gradient.Static(msg.User.Username, gradient.BlueGreenYellow...))),
+			message.Cmd(
+				logger.Concat{
+					Separator: " ",
+					Save:      true,
+					Items: []logger.Renderable{
+						logger.NewMessageTime("Sucessfully logged in to vrpaws as"),
+						logger.NewStaticString(msg.User.Username, gradient.BlueGreenYellow...),
+					},
+				},
+			),
 		)
 	case message.UsernameSet:
 		m.inputs[username].SetValue(string(msg))
