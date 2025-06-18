@@ -151,6 +151,7 @@ type MessageTime struct {
 	Message string
 	Width   int
 	Time    time.Time
+	Save    bool
 }
 
 func NewMessageTime(message string) *MessageTime {
@@ -183,7 +184,7 @@ func (r *MessageTime) Raw() string {
 }
 
 func (r *MessageTime) ShouldSave() bool {
-	return true
+	return r.Save
 }
 
 func (r Message) String(maxWidth int) (string, int) {
@@ -206,6 +207,7 @@ type GradientString struct {
 	Message string
 	Width   int
 	Colors  []string
+	Save    bool
 }
 
 const fps = float64(60)
@@ -235,7 +237,7 @@ func (r *GradientString) Len() int {
 }
 
 func (r *GradientString) ShouldSave() bool {
-	return false
+	return r.Save
 }
 
 func (r *GradientString) Raw() string {
@@ -274,7 +276,7 @@ func (r *StaticString) Len() int {
 }
 
 func (r *StaticString) ShouldSave() bool {
-	return false
+	return r.Save
 }
 
 func (r *StaticString) Raw() string {
