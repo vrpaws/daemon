@@ -20,9 +20,9 @@ type Renderable interface {
 }
 
 type Anchor struct {
-	Message Renderable
-	OnClick tea.Cmd
 	Prefix  string
+	OnClick tea.Cmd
+	Message Renderable
 }
 
 func NewAnchor(message Renderable, callback tea.Cmd, prefix string) Anchor {
@@ -30,9 +30,9 @@ func NewAnchor(message Renderable, callback tea.Cmd, prefix string) Anchor {
 		prefix = zone.NewPrefix() + message.Raw()
 	}
 	return Anchor{
-		Message: message,
-		OnClick: callback,
 		Prefix:  prefix,
+		OnClick: callback,
+		Message: message,
 	}
 }
 
@@ -54,9 +54,9 @@ func (a Anchor) Raw() string {
 }
 
 type Concat struct {
-	Items     []Renderable
 	Separator string
 	Save      bool // saves every Renderable if set to true, otherwise will use each's Renderable.ShouldSave
+	Items     []Renderable
 }
 
 func (c Concat) Raw() string {

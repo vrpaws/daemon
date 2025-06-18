@@ -172,18 +172,24 @@ func (m *Uploader) upload(path string) (*vrpaws.UploadResponse, error) {
 		return nil, fmt.Errorf("uploading %s: %w", payload.File.Filename, err)
 	} else {
 		m.program.Send(logger.Concat{
+			Save: true,
 			Items: []logger.Renderable{
 				logger.NewMessageTime("Successfully uploaded "),
 				logger.NewGradientString(payload.File.Filename, 100*time.Millisecond, gradient.PastelColors...),
 				logger.Message("!"),
 			},
-			Save: true,
 		})
 		m.program.Send(logger.Concat{
+			Save: true,
 			Items: []logger.Renderable{
 				logger.NewMessageTime(""),
 				logger.Anchor{
+					Prefix: response.Image,
+					OnClick: func() tea.Msg {
+						return browser.OpenURL("https://vrpa.ws/photo/" + response.Image)
+					},
 					Message: logger.Concat{
+						Save: true,
 						Items: []logger.Renderable{
 							logger.Message("https://vrpa.ws/photo/"),
 							logger.NewGradientString(response.Image, time.Second,
@@ -196,13 +202,8 @@ func (m *Uploader) upload(path string) (*vrpaws.UploadResponse, error) {
 							),
 						},
 					},
-					OnClick: func() tea.Msg {
-						return browser.OpenURL("https://vrpa.ws/photo/" + response.Image)
-					},
-					Prefix: response.Image,
 				},
 			},
-			Save: true,
 		})
 		return response, nil
 	}
