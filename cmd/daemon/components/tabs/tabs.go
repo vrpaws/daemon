@@ -207,7 +207,7 @@ func (m Tabs) View() string {
 	}
 
 	row := lipgloss.JoinHorizontal(lipgloss.Top, m.out...)
-	username := activeTab.Render(m.extra)
+	username := activeTab.Render(gradient.Global.RenderCurrent(m.extra))
 	gap := tabGap.Render(strings.Repeat(" ", max(0, m.width-calculateWidths(row, username))))
 	row = lipgloss.JoinHorizontal(lipgloss.Bottom, row, gap, username)
 	return row
