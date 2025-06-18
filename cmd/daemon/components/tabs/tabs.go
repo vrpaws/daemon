@@ -11,6 +11,7 @@ package tabs
 
 import (
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -18,6 +19,7 @@ import (
 	zone "github.com/lrstanley/bubblezone"
 
 	"vrc-moments/cmd/daemon/components/message"
+	"vrc-moments/pkg/gradient"
 )
 
 var (
@@ -98,6 +100,11 @@ func New(items []string, username string) Tabs {
 		spinner: spinner.New(spinner.WithSpinner(spinner.Moon)),
 	}
 
+	gradient.Global.New(
+		username,
+		gradient.StepsFromDuration(lipgloss.Width(username), time.Second, 60),
+		gradient.BlueGreenYellow...,
+	)
 	for i, content := range items {
 		tabs.items[i] = &tabItem{
 			prefix:  prefix + content,
@@ -150,7 +157,15 @@ func (m Tabs) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 	case message.UsernameSet:
-		m.extra = string(msg)
+		s := string(msg)
+		if m.extra != s {
+			gradient.Global.New(
+				s,
+				gradient.StepsFromDuration(lipgloss.Width(s), time.Second, 60),
+				gradient.BlueGreenYellow...,
+			)
+		}
+		m.extra = s
 		return m, nil
 	}
 	return m, nil
@@ -210,7 +225,7 @@ func (m Tabs) Login() string {
 	}
 
 	row := lipgloss.JoinHorizontal(lipgloss.Top, m.out...)
-	username := activeTab.Render(m.extra)
+	username := activeTab.Render(gradient.Global.RenderCurrent(m.extra))
 	gap := tabGap.Render(strings.Repeat(" ", max(0, m.width-calculateWidths(row, username))))
 	row = lipgloss.JoinHorizontal(lipgloss.Bottom, row, gap, username)
 	return row

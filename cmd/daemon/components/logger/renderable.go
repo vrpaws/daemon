@@ -218,9 +218,9 @@ func NewGradientString(message string, duration time.Duration, colors ...string)
 		Width:   lipgloss.Width(message),
 		Colors:  colors,
 	}
-	frames := int(duration.Nanoseconds() * int64(fps) / int64(time.Second))
-	steps := min(max(frames, 5), 120)
+	steps := gradient.StepsFromDuration(str.Width, duration, 60)
 	gradient.Global.New(str.Message, steps, str.Colors...)
+
 	return str
 }
 

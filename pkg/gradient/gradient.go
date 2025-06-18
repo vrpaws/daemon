@@ -1,8 +1,10 @@
 package gradient
 
 import (
+	"math/rand/v2"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/lucasb-eyer/go-colorful"
@@ -82,6 +84,32 @@ func NewGradientRenderer() *Renderer {
 	}
 }
 
+func StepsFromDuration(width int, duration time.Duration, fps float64) int {
+	frames := int(float64(duration.Nanoseconds()) * fps / float64(time.Second))
+	steps := frames
+
+	if width > 0 {
+		steps = max(steps, width)
+	}
+
+	return min(max(steps, 5), 120)
+}
+
+func Steps(s string) int {
+	width := lipgloss.Width(s)
+	const (
+		minSteps = 5
+		maxSteps = 120
+		minWidth = 4
+		maxWidth = 80
+	)
+
+	clampedWidth := min(max(width, minWidth), maxWidth)
+	invScale := float64(clampedWidth-minWidth) / float64(maxWidth-minWidth)
+	steps := int(float64(minSteps) + invScale*float64(maxSteps-minSteps))
+	return steps
+}
+
 func (gr *Renderer) New(s string, steps int, hexColors ...string) {
 	if s == "" {
 		return
@@ -135,7 +163,15 @@ func (gr *Renderer) RenderCurrent(s string) string {
 	data, ok := gr.cache[s]
 	gr.mu.RUnlock()
 	if !ok {
-		return s
+		color := [...][]string{
+			PastelColors,
+			BlueGreenYellow,
+			PastelRainbow,
+			PastelGreenBlue,
+			GreenPinkBlue,
+		}
+
+		gr.New(s, Steps(s), color[rand.IntN(len(color))]...)
 	}
 
 	var result strings.Builder
