@@ -9,7 +9,7 @@ import { HeroBackground } from "./components/kokonutui/hero-background"
 import { FloatingShapes } from "./components/kokonutui/floating-shapes"
 import { HeroTitle } from "./components/kokonutui/hero-title"
 import { HeroDescription } from "./components/kokonutui/hero-description"
-import { useSearchParams } from "next/navigation"
+import { usePathname, useSearchParams } from "next/navigation"
 import { useEffect, useState } from "react"
 
 export default function Component({
@@ -25,15 +25,21 @@ export default function Component({
                                     streamUrl = "https://vrpa.ws/stream",
                                     streamLabel = "Stream",
                                   }: LoginSuccessProps = {}) {
+  const pathname = usePathname()
   const searchParams = useSearchParams()
   const hasAccessToken = searchParams.get("access_token")
   const [currentUrl, setCurrentUrl] = useState("")
   const [loginUrl, setLoginUrl] = useState("")
 
   useEffect(() => {
-    setCurrentUrl(window.location.href)
-    setLoginUrl(`https://vrpa.ws/client/connect?redirect_url=${encodeURIComponent(currentUrl)}&service_name=vrpaws-client`)
-  }, [])
+    if (typeof window === 'undefined') return;
+    // full URL, including query
+    const fullUrl = window.location.href;
+    setCurrentUrl(fullUrl);
+    setLoginUrl(
+      `https://vrpa.ws/client/connect?redirect_url=${encodeURIComponent(fullUrl)}&service_name=vrpaws-client`
+    );
+  }, [pathname, searchParams]);
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-[#030303]">
