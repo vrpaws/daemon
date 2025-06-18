@@ -26,6 +26,9 @@ var (
 	subtle    = lipgloss.AdaptiveColor{Light: "#D9DCCF", Dark: "#383838"}
 	highlight = lipgloss.AdaptiveColor{Light: "#874BFD", Dark: "#7D56F4"}
 	special   = lipgloss.AdaptiveColor{Light: "#43BF6D", Dark: "#73F59F"}
+	redError  = lipgloss.Color("#EB4034")
+
+	errorStyle = lipgloss.NewStyle().Foreground(redError)
 
 	buttonStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
@@ -60,6 +63,7 @@ type Model struct {
 
 	width  int
 	height int
+	err    error
 }
 
 func New(config *settings.Config, server *vrpaws.Server) *Model {
@@ -94,6 +98,9 @@ func (m *Model) Init() tea.Cmd {
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case error:
+		m.err = msg
+		return m, nil
 	case message.LoginRequest:
 		return m, m.login
 	case *tea.Program:
@@ -145,11 +152,13 @@ func (m *Model) View() string {
 	}
 
 	loginButton := zone.Mark("login-button", m.button.Render())
-	return lipgloss.PlaceVertical(m.height-12, lipgloss.Center,
-		lipgloss.JoinVertical(lipgloss.Center,
-			"Welcome to VRPaws Client!",
-			loginButton,
-		))
+	strs := []string{"Welcome to VRPaws Client!", loginButton}
+	if m.err != nil {
+		strs = append(strs, errorStyle.Render("error while logging in\n"), m.err.Error())
+	}
+
+	return lipgloss.PlaceVertical(m.height-8, lipgloss.Center,
+		lipgloss.JoinVertical(lipgloss.Center, strs...))
 }
 
 func isLocalhostAccessible() bool {
@@ -199,9 +208,10 @@ func (m *Model) login() tea.Msg {
 		token := r.URL.Query().Get("access_token")
 		if token != "" {
 			if user, err := m.server.ValidToken(token); err == nil {
+				m.err = nil
 				m.program.Send(user)
 			} else {
-				m.program.Send(err)
+				m.program.Send(fmt.Errorf("got token %q but it was not valid: %w", token, err))
 			}
 		}
 
