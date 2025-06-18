@@ -97,7 +97,7 @@ func getRemote(config *settings.Config) *url.URL {
 
 	remote := &url.URL{
 		Scheme: "https",
-		Path:   "vrpa.ws",
+		Host:   "vrpa.ws",
 	}
 	config.Server = remote.String()
 	return remote
