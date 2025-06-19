@@ -10,6 +10,7 @@
 package tabs
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/spinner"
@@ -79,6 +80,7 @@ type Tabs struct {
 	activeIndex uint8
 	out         []string
 	extra       string
+	extraRender fmt.Stringer
 	spinner     spinner.Model
 }
 
@@ -92,14 +94,14 @@ func New(items []string, username string) Tabs {
 	const prefix = "tab"
 
 	tabs := Tabs{
-		prefix:  prefix,
-		out:     make([]string, len(items)+1),
-		items:   make([]*tabItem, len(items)),
-		extra:   username,
-		spinner: spinner.New(spinner.WithSpinner(spinner.Moon)),
+		prefix:      prefix,
+		out:         make([]string, len(items)+1),
+		items:       make([]*tabItem, len(items)),
+		extra:       username,
+		extraRender: gradient.Global.New(username, 30, gradient.BlueGreenYellow...),
+		spinner:     spinner.New(spinner.WithSpinner(spinner.Moon)),
 	}
 
-	gradient.Global.New(username, 30, gradient.BlueGreenYellow...)
 	for i, content := range items {
 		tabs.items[i] = &tabItem{
 			prefix:  prefix + content,
@@ -154,7 +156,8 @@ func (m Tabs) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case message.UsernameSet:
 		s := string(msg)
 		if m.extra != s {
-			gradient.Global.New(s, 30, gradient.BlueGreenYellow...)
+			gradient.Global.Delete(m.extra)
+			m.extraRender = gradient.Global.New(s, 30, gradient.BlueGreenYellow...)
 		}
 		m.extra = s
 		return m, nil
@@ -198,7 +201,7 @@ func (m Tabs) View() string {
 	}
 
 	row := lipgloss.JoinHorizontal(lipgloss.Top, m.out...)
-	username := activeTab.Render(gradient.Global.RenderAdvance(m.extra))
+	username := activeTab.Render(m.extraRender.String())
 	gap := tabGap.Render(strings.Repeat(" ", max(0, m.width-calculateWidths(row, username))))
 	row = lipgloss.JoinHorizontal(lipgloss.Bottom, row, gap, username)
 	return row
@@ -216,7 +219,7 @@ func (m Tabs) Login() string {
 	}
 
 	row := lipgloss.JoinHorizontal(lipgloss.Top, m.out...)
-	username := activeTab.Render(gradient.Global.RenderAdvance(m.extra))
+	username := activeTab.Render(m.extraRender.String())
 	gap := tabGap.Render(strings.Repeat(" ", max(0, m.width-calculateWidths(row, username))))
 	row = lipgloss.JoinHorizontal(lipgloss.Bottom, row, gap, username)
 	return row

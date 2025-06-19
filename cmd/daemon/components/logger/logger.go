@@ -19,6 +19,7 @@ import (
 	zone "github.com/lrstanley/bubblezone"
 
 	"vrc-moments/cmd/daemon/components/message"
+	"vrc-moments/pkg/gradient"
 )
 
 var (
@@ -133,18 +134,7 @@ func (m *Logger) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case spinner.TickMsg:
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
-		for _, renderable := range m.messages {
-			switch renderable := renderable.(type) {
-			case Concat:
-				for _, item := range renderable.Items {
-					if g, ok := item.(*GradientString); ok {
-						g.Advance()
-					}
-				}
-			case *GradientString:
-				renderable.Advance()
-			}
-		}
+		gradient.Global.AdvanceAll()
 		return m, cmd
 	default:
 		return m, nil

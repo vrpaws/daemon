@@ -229,6 +229,15 @@ func (f *FrameData) String() string {
 	return result.String()
 }
 
+func (f *FrameData) Advance() {
+	f.index = (f.index + 1) % len(f.frames)
+}
+
+// Reset resets the animation to the first frame
+func (f *FrameData) Reset() {
+	f.index = 0
+}
+
 // Write writes the current frame directly to an io.Writer
 func (gr *Renderer) Write(s string, w io.Writer) error {
 	gr.mu.RLock()
@@ -257,6 +266,14 @@ func (gr *Renderer) Advance(s string) {
 	}
 }
 
+func (gr *Renderer) AdvanceAll() {
+	gr.mu.Lock()
+	defer gr.mu.Unlock()
+	for _, data := range gr.cache {
+		data.index = (data.index + 1) % len(data.frames)
+	}
+}
+
 // Reset resets the animation to the first frame
 func (gr *Renderer) Reset(s string) {
 	gr.mu.Lock()
@@ -264,6 +281,13 @@ func (gr *Renderer) Reset(s string) {
 	if data, ok := gr.cache[s]; ok {
 		data.index = 0
 	}
+}
+
+// Delete removes the cached data for a string
+func (gr *Renderer) Delete(s string) {
+	gr.mu.Lock()
+	defer gr.mu.Unlock()
+	delete(gr.cache, s)
 }
 
 // precomputeFrames builds all frames as RGBColor arrays
