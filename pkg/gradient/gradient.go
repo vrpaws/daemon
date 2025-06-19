@@ -1,6 +1,8 @@
 package gradient
 
 import (
+	"io"
+	"math"
 	"math/rand/v2"
 	"strings"
 	"sync"
@@ -8,6 +10,9 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/lucasb-eyer/go-colorful"
+	"github.com/muesli/termenv"
+
+	"vrc-moments/pkg/pool"
 )
 
 var PastelColors = []string{"#00E2FD", "#6D90FA", "#FF22EE", "#FF8D7A", "#FFC851"}
@@ -65,25 +70,36 @@ func Static(s string, hexColors ...string) string {
 	return result.String()
 }
 
-var Global = NewGradientRenderer()
-
-type frameData struct {
-	frames [][]string
-	index  int
-	steps  int
-}
+// Global gradient renderer (truecolor)
+var Global = NewGradientRenderer(termenv.TrueColor)
 
 type Renderer struct {
-	cache map[string]*frameData
-	mu    sync.RWMutex
+	profile termenv.Profile
+	cache   map[string]*FrameData
+	mu      sync.RWMutex
+
+	pool *pool.Pool[*strings.Builder]
 }
 
-func NewGradientRenderer() *Renderer {
+type FrameData struct {
+	message string
+	frames  [][]termenv.RGBColor
+	index   int
+	steps   int
+
+	pool *pool.Pool[*strings.Builder]
+}
+
+func NewGradientRenderer(profile termenv.Profile) *Renderer {
 	return &Renderer{
-		cache: make(map[string]*frameData),
+		profile: profile,
+		cache:   make(map[string]*FrameData),
+
+		pool: pool.New(func() *strings.Builder { return new(strings.Builder) }),
 	}
 }
 
+// StepsFromDuration computes the frame count
 func StepsFromDuration(width int, duration time.Duration, fps float64) int {
 	frames := int(float64(duration.Nanoseconds()) * fps / float64(time.Second))
 	steps := frames
@@ -95,6 +111,7 @@ func StepsFromDuration(width int, duration time.Duration, fps float64) int {
 	return min(max(steps, 5), 120)
 }
 
+// Steps returns a clamped number of steps based on string width
 func Steps(s string) int {
 	width := lipgloss.Width(s)
 	const (
@@ -103,59 +120,64 @@ func Steps(s string) int {
 		minWidth = 4
 		maxWidth = 80
 	)
-
 	clampedWidth := min(max(width, minWidth), maxWidth)
 	invScale := float64(clampedWidth-minWidth) / float64(maxWidth-minWidth)
-	steps := int(float64(minSteps) + invScale*float64(maxSteps-minSteps))
-	return steps
+	return int(float64(minSteps) + invScale*float64(maxSteps-minSteps))
 }
 
-func (gr *Renderer) New(s string, steps int, hexColors ...string) {
+// New initializes and caches frame data for a given string
+func (gr *Renderer) New(s string, steps int, hexColors ...string) *FrameData {
 	if s == "" {
-		return
+		return nil
 	}
 	if w := lipgloss.Width(s); steps < w {
 		steps = w
 	}
 
 	gr.mu.RLock()
-	_, exists := gr.cache[s]
+	data, exists := gr.cache[s]
 	gr.mu.RUnlock()
 	if exists {
-		return
+		return data
 	}
 
 	runes := []rune(s)
 	total := len(runes)
-	var frames [][]string
+	var frames [][]termenv.RGBColor
 
 	switch len(hexColors) {
 	case 0:
-		return
+		return nil
 	case 1:
-		frame := make([]string, total)
-		for i := 0; i < total; i++ {
-			frame[i] = hexColors[0]
+		// Single-color: repeat the same RGBColor
+		frame := make([]termenv.RGBColor, total)
+		rgb := termenv.RGBColor(hexColors[0])
+		for i := range frame {
+			frame[i] = rgb
 		}
-		frames = [][]string{frame}
+		frames = [][]termenv.RGBColor{frame}
 	default:
+		// Multi-color gradient
 		colors := make([]colorful.Color, len(hexColors))
 		for i, hex := range hexColors {
 			c, err := colorful.Hex(hex)
 			if err != nil {
-				return
+				return nil
 			}
 			colors[i] = c
 		}
+		// ensure wrap-around
 		if colors[0] != colors[len(colors)-1] {
-			colors = append(colors, colors[0]) // ensure the first and last colors are the same
+			colors = append(colors, colors[0])
 		}
-		frames = precomputeFrames(runes, steps, colors)
+		frames = gr.precomputeFrames(runes, steps, colors)
 	}
 
+	data = &FrameData{message: s, frames: frames, steps: steps, pool: gr.pool}
 	gr.mu.Lock()
-	gr.cache[s] = &frameData{frames: frames, steps: steps}
+	gr.cache[s] = data
 	gr.mu.Unlock()
+	return data
 }
 
 func (gr *Renderer) RenderAdvance(s string) string {
@@ -163,6 +185,7 @@ func (gr *Renderer) RenderAdvance(s string) string {
 	return gr.RenderCurrent(s)
 }
 
+// RenderCurrent returns the current frame as a colored string
 func (gr *Renderer) RenderCurrent(s string) string {
 	gr.mu.RLock()
 	data, ok := gr.cache[s]
@@ -179,15 +202,53 @@ func (gr *Renderer) RenderCurrent(s string) string {
 		gr.New(s, Steps(s), color[rand.IntN(len(color))]...)
 	}
 
-	var result strings.Builder
+	result := gr.pool.Get()
+	defer gr.pool.Put(result)
 	runes := []rune(s)
 	for i, r := range runes {
-		style := lipgloss.NewStyle().Foreground(lipgloss.Color(data.frames[data.index][i]))
-		result.WriteString(style.Render(string(r)))
+		color := data.frames[data.index][i]
+		styled := termenv.String(string(r)).Foreground(color).String()
+		result.WriteString(styled)
 	}
 	return result.String()
 }
 
+func (f *FrameData) String() string {
+	if f == nil {
+		return ""
+	}
+	result := f.pool.Get()
+	defer f.pool.Put(result)
+	for i, r := range f.message {
+		hex := f.frames[f.index][i]
+		styled := termenv.String(string(r)).
+			Foreground(hex).
+			String()
+		result.WriteString(styled)
+	}
+	return result.String()
+}
+
+// Write writes the current frame directly to an io.Writer
+func (gr *Renderer) Write(s string, w io.Writer) error {
+	gr.mu.RLock()
+	data, ok := gr.cache[s]
+	gr.mu.RUnlock()
+	if !ok {
+		return gr.Write(s, w)
+	}
+
+	for i, r := range s {
+		color := data.frames[data.index][i]
+		styled := termenv.String(string(r)).Foreground(color).String()
+		if _, err := w.Write([]byte(styled)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Advance moves to the next frame
 func (gr *Renderer) Advance(s string) {
 	gr.mu.Lock()
 	defer gr.mu.Unlock()
@@ -196,6 +257,7 @@ func (gr *Renderer) Advance(s string) {
 	}
 }
 
+// Reset resets the animation to the first frame
 func (gr *Renderer) Reset(s string) {
 	gr.mu.Lock()
 	defer gr.mu.Unlock()
@@ -204,31 +266,40 @@ func (gr *Renderer) Reset(s string) {
 	}
 }
 
-func precomputeFrames(runes []rune, steps int, colors []colorful.Color) [][]string {
+// precomputeFrames builds all frames as RGBColor arrays
+func (gr *Renderer) precomputeFrames(runes []rune, steps int, colors []colorful.Color) [][]termenv.RGBColor {
 	total := len(runes)
 	segments := len(colors) - 1
-	var frames [][]string
+	var frames [][]termenv.RGBColor
 
-	for step := 0; step < steps; step++ {
-		progress := float64(step) / float64(steps-1)
-		frame := make([]string, total)
+	for step := range steps {
+		progress := float64(step) / float64(steps)
 
-		for i := 0; i < total; i++ {
-			var ratio float64
-			if total > 1 {
-				ratio = float64(i)/float64(total-1) + progress/float64(steps)
-			}
-			ratio -= float64(int(ratio)) // wrap into [0,1)
+		frame := make([]termenv.RGBColor, total)
+		var wg sync.WaitGroup
+		wg.Add(total)
+		for i := range total {
+			go func() {
+				base := 0.0
+				if total > 1 {
+					base = float64(i) / float64(total-1)
+				}
 
-			segment := int(ratio * float64(segments))
-			if segment >= segments {
-				segment = segments - 1
-			}
-			local := (ratio * float64(segments)) - float64(segment)
-			blend := colors[segment].BlendLab(colors[segment+1], local).Clamped()
-			frame[i] = blend.Hex()
+				r := math.Mod(base+progress, 1.0)
+				seg := int(r * float64(segments))
+				if seg >= segments {
+					seg = segments - 1
+				}
+				local := r*float64(segments) - float64(seg)
+
+				c := colors[seg].BlendLab(colors[seg+1], local).Clamped()
+				frame[i] = termenv.RGBColor(c.Hex())
+				wg.Done()
+			}()
 		}
+		wg.Wait()
 		frames = append(frames, frame)
 	}
+
 	return frames
 }
