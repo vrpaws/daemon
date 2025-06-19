@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/fsnotify/fsnotify"
@@ -179,7 +178,7 @@ func (m *Uploader) upload(path string) (*vrpaws.UploadResponse, error) {
 			Save: true,
 			Items: []logger.Renderable{
 				logger.NewMessageTime("Successfully uploaded "),
-				logger.NewGradientString(payload.File.Filename, 100*time.Millisecond, gradient.PastelColors...),
+				logger.NewGradientString(payload.File.Filename, gradient.PastelColors...),
 				logger.Message("!"),
 			},
 		})
@@ -196,7 +195,7 @@ func (m *Uploader) upload(path string) (*vrpaws.UploadResponse, error) {
 						Save: true,
 						Items: []logger.Renderable{
 							logger.Message("https://vrpa.ws/photo/"),
-							logger.NewGradientString(response.Image, time.Second,
+							logger.NewGradientString(response.Image,
 								lib.Random(
 									gradient.BlueGreenYellow,
 									gradient.PastelRainbow,

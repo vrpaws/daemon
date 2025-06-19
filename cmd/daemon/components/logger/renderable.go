@@ -212,14 +212,13 @@ type GradientString struct {
 
 const fps = float64(60)
 
-func NewGradientString(message string, duration time.Duration, colors ...string) *GradientString {
+func NewGradientString(message string, colors ...string) *GradientString {
 	str := &GradientString{
 		Message: message,
 		Width:   lipgloss.Width(message),
 		Colors:  colors,
 	}
-	steps := gradient.StepsFromDuration(str.Width, duration, 60)
-	gradient.Global.New(str.Message, steps, str.Colors...)
+	gradient.Global.New(str.Message, 30, str.Colors...)
 
 	return str
 }

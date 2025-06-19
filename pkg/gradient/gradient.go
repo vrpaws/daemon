@@ -158,6 +158,11 @@ func (gr *Renderer) New(s string, steps int, hexColors ...string) {
 	gr.mu.Unlock()
 }
 
+func (gr *Renderer) RenderAdvance(s string) string {
+	gr.Advance(s)
+	return gr.RenderCurrent(s)
+}
+
 func (gr *Renderer) RenderCurrent(s string) string {
 	gr.mu.RLock()
 	data, ok := gr.cache[s]

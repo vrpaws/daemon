@@ -66,7 +66,7 @@ func main() {
 		program.Send(logger.Concat{
 			Items: []logger.Renderable{
 				logger.NewMessageTime("Hello "),
-				logger.NewGradientString(config.Username, 250*time.Millisecond, gradient.PastelColors...),
+				logger.NewGradientString(config.Username, gradient.PastelColors...),
 				logger.Message("!"),
 			},
 			Separator: "",
