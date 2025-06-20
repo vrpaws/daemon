@@ -39,14 +39,14 @@ func ExtractUsernameFromLogs(logDir string) (string, error) {
 	if logDir == "" {
 		logDir = DefaultLogPath
 	}
-	return ExtractReader(logDir, false, usernameRegex)
+	return ExtractReader(logDir, Scanner, usernameRegex)
 }
 
 func ExtractCurrentRoomName(logDir string) (string, error) {
 	if logDir == "" {
 		logDir = DefaultLogPath
 	}
-	return ExtractReader(logDir, true, roomNameRegex)
+	return ExtractReader(logDir, ReverseLines, roomNameRegex)
 }
 
 type logFile struct {
@@ -54,7 +54,7 @@ type logFile struct {
 	time time.Time
 }
 
-func ExtractReader(logDir string, reverse bool, match *regexp.Regexp) (string, error) {
+func ExtractReader(logDir string, reader func(io.ReadSeeker) iter.Seq2[[]byte, error], match *regexp.Regexp) (string, error) {
 	pattern := filepath.Join(logDir, "output_log_*.txt")
 
 	logFiles, err := filepath.Glob(pattern)
@@ -94,40 +94,29 @@ func ExtractReader(logDir string, reverse bool, match *regexp.Regexp) (string, e
 			return "", fmt.Errorf("failed to read file %s: %w\n", l.path, err)
 		}
 
-		if reverse {
-			for line := range ReverseLines(file) {
-				matches := match.FindSubmatch(line)
-				if len(matches) > 1 {
-					file.Close()
-					return string(matches[1]), nil
-				}
-			}
-		} else {
-			for line := range Scanner(file) {
-				matches := match.FindStringSubmatch(line)
-				if len(matches) > 1 {
-					file.Close()
-					return matches[1], nil
-				}
+		for line := range reader(file) {
+			matches := match.FindSubmatch(line)
+			if len(matches) > 1 {
+				file.Close()
+				return string(matches[1]), nil
 			}
 		}
-
 		file.Close()
 	}
 
 	return "", errors.New("no matching line found in any log files")
 }
 
-func Scanner(r io.ReadSeeker) iter.Seq2[string, error] {
+func Scanner(r io.ReadSeeker) iter.Seq2[[]byte, error] {
 	scanner := bufio.NewScanner(r)
-	return func(yield func(string, error) bool) {
+	return func(yield func([]byte, error) bool) {
 		for scanner.Scan() {
 			if err := scanner.Err(); err != nil {
-				yield("", err)
+				yield(nil, err)
 				return
 			}
-			line := scanner.Text()
-			if line == "" {
+			line := scanner.Bytes()
+			if len(line) == 0 {
 				continue
 			}
 			if !yield(line, nil) {
