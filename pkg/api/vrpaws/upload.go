@@ -12,6 +12,7 @@ import (
 
 	"github.com/disintegration/imaging"
 
+	"vrc-moments/cmd/daemon/components/logger"
 	lib "vrc-moments/pkg"
 	"vrc-moments/pkg/api"
 	"vrc-moments/pkg/vrc"
@@ -44,13 +45,19 @@ type World struct {
 	ID   string `json:"id"`
 }
 
+type UploadPayload struct {
+	SetProgress func(logger.Renderable, float64)
+	*api.UploadPayload
+}
+
 type UploadResponse struct {
 	Image string `json:"image"`
 }
 
-func (s *Server) Upload(ctx context.Context, payload api.UploadPayload) (*UploadResponse, error) {
+func (s *Server) Upload(ctx context.Context, payload *UploadPayload) (*UploadResponse, error) {
 	defer payload.File.Close()
 
+	payload.SetProgress(logger.Message("Loading data..."), 0.05)
 	if payload.Token == "" {
 		return nil, errors.New("missing access token")
 	}
@@ -64,11 +71,13 @@ func (s *Server) Upload(ctx context.Context, payload api.UploadPayload) (*Upload
 		return nil, fmt.Errorf("could not copy file to buffer: %w", err)
 	}
 
+	payload.SetProgress(logger.Message("Decoding image..."), 0.1)
 	image, err := imaging.Decode(bytes.NewReader(main.Bytes()))
 	if err != nil {
 		return nil, fmt.Errorf("could not decode image: %w", err)
 	}
 
+	payload.SetProgress(logger.Message("Starting upload..."), 0.2)
 	uploadPayload := uploadPayload{
 		Title:       lib.RemoveExtension(payload.File.Filename),
 		Description: "",
@@ -80,11 +89,19 @@ func (s *Server) Upload(ctx context.Context, payload api.UploadPayload) (*Upload
 	}
 
 	bounds := image.Bounds()
+
+	numSteps := len(imageSizes)
+	const stepStart = 0.2
+	const stepEnd = 0.8
+	stepIncrement := (stepEnd - stepStart) / float64(numSteps)
+	var stepIndex int
+
 	for mode, size := range imageSizes {
 		var reader io.Reader
 
 		// check if we exceed size.width or size.height
 		if bounds.Dx() > size.width || bounds.Dy() > size.height {
+			payload.SetProgress(logger.Messagef("Resizing %s...", mode), stepStart+(float64(stepIndex))*stepIncrement)
 			reader, err = resize(image, size.width, size.height)
 			if err != nil {
 				return nil, fmt.Errorf("could not resize %s image: %w", mode, err)
@@ -93,10 +110,12 @@ func (s *Server) Upload(ctx context.Context, payload api.UploadPayload) (*Upload
 			reader = bytes.NewReader(main.Bytes())
 		}
 
+		payload.SetProgress(logger.Messagef("Uploading %s...", mode), stepStart+(float64(stepIndex)+0.5)*stepIncrement)
 		id, err := s.upload(payload.Token, reader)
 		if err != nil {
 			return nil, fmt.Errorf("could not upload %s image: %w", mode, err)
 		}
+		payload.SetProgress(logger.Messagef("Uploading %s...", mode), stepStart+(float64(stepIndex)+1)*stepIncrement)
 
 		switch mode {
 		case original:
@@ -110,6 +129,8 @@ func (s *Server) Upload(ctx context.Context, payload api.UploadPayload) (*Upload
 		case large:
 			uploadPayload.LargeStorageId = id
 		}
+
+		stepIndex++
 	}
 
 	reader, err := lib.Encode(uploadPayload)
@@ -117,6 +138,7 @@ func (s *Server) Upload(ctx context.Context, payload api.UploadPayload) (*Upload
 		return nil, fmt.Errorf("could not encode upload payload: %w", err)
 	}
 
+	payload.SetProgress(logger.Message("Uploading..."), 0.85)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint.String(), reader)
 	if err != nil {
 		return nil, fmt.Errorf("could not create upload request: %w", err)
@@ -130,6 +152,7 @@ func (s *Server) Upload(ctx context.Context, payload api.UploadPayload) (*Upload
 	}
 	defer resp.Body.Close()
 
+	payload.SetProgress(logger.Message("Reading response..."), 0.95)
 	if resp.StatusCode != http.StatusOK {
 		bin, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("unexpected status code: %s: %s", resp.Status, bin)
@@ -140,6 +163,7 @@ func (s *Server) Upload(ctx context.Context, payload api.UploadPayload) (*Upload
 		return nil, fmt.Errorf("could not decode upload response: %w", err)
 	}
 
+	payload.SetProgress(logger.Message("Done!"), 1.0)
 	return response, nil
 }
 

@@ -20,6 +20,8 @@ func (m *Model) Init() tea.Cmd {
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.Cmd:
+		return m, msg
 	case io.Writer:
 		m.logFile = msg
 	case tea.KeyMsg:

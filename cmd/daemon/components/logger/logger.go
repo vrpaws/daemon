@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -124,43 +125,164 @@ func (m *Logger) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		default:
 			return m, nil
 		}
+	case Delete:
+		return m, nil
 	case Renderable:
 		m.messages = append(m.messages[1:], msg)
 		if msg.ShouldSave() {
 			go m.writeToLog(msg.Raw())
 			return m, nil
 		}
-		return m, message.CallbackValue(m.registerCallbacks, msg)
+
+		return m, message.CallbackValue(m.register, msg)
 	case spinner.TickMsg:
+		var cmds []tea.Cmd
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+
+		_, cmd = m.propagate(msg)
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+
 		gradient.Global.AdvanceAll()
-		return m, cmd
+		return m, tea.Batch(cmds...)
 	default:
-		return m, nil
+		return m.propagate(msg)
 	}
 }
 
-func (m *Logger) registerCallbacks(r Renderable) tea.Msg {
+func (m *Logger) propagate(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+
+	var containsDelete func(Renderable) bool
+	containsDelete = func(r Renderable) bool {
+		switch v := r.(type) {
+		case Delete, *Delete:
+			return true
+		case Concat:
+			if len(v.Items) == 0 {
+				return true
+			}
+			for _, item := range v.Items {
+				if containsDelete(item) {
+					return true
+				}
+			}
+		case *Concat:
+			if len(v.Items) == 0 {
+				return true
+			}
+			for _, item := range v.Items {
+				if containsDelete(item) {
+					return true
+				}
+			}
+		case Anchor:
+			return containsDelete(v.Message)
+		case *Anchor:
+			return containsDelete(v.Message)
+		}
+		return false
+	}
+
+	var propagate func(Renderable) Renderable
+	propagate = func(r Renderable) Renderable {
+		switch v := r.(type) {
+		case *Spinner:
+			model, cmd := v.Model.Update(msg)
+			if cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+			v.Model = &model
+			return v
+		case *Progress:
+			model, cmd := v.Update(msg)
+			if p, ok := model.(progress.Model); cmd != nil && ok {
+				v.Model = &p
+				cmds = append(cmds, cmd)
+			}
+			return v
+		case Concat:
+			for i, item := range v.Items {
+				v.Items[i] = propagate(item)
+			}
+			return v
+		case *Concat:
+			for i, item := range v.Items {
+				v.Items[i] = propagate(item)
+			}
+			return v
+		case Anchor:
+			v.Message = propagate(v.Message)
+			return v
+		case *Anchor:
+			v.Message = propagate(v.Message)
+			return v
+		default:
+			return r
+		}
+	}
+
+	m.messages = slices.DeleteFunc(m.messages, func(r Renderable) bool {
+		if r == nil {
+			return false
+		}
+		return containsDelete(r)
+	})
+
+	for i, r := range m.messages {
+		m.messages[i] = propagate(r)
+	}
+
+	if len(cmds) > 0 {
+		return m, tea.Batch(cmds...)
+	}
+
+	return m, nil
+}
+
+func (m *Logger) register(r Renderable) tea.Msg {
 	callbacks := make(map[string]tea.Cmd)
-	collectCallbacks(r, callbacks)
+	var cmds []tea.Cmd
+	collectCallbacks(r, callbacks, &cmds)
 
 	m.mu.Lock()
 	maps.Copy(m.callbacks, callbacks)
 	m.mu.Unlock()
 
+	if len(cmds) > 0 {
+		return tea.Batch(cmds...)
+	}
+
 	return nil
 }
 
-func collectCallbacks(r Renderable, out map[string]tea.Cmd) {
+func collectCallbacks(r Renderable, out map[string]tea.Cmd, cmds *[]tea.Cmd) {
 	switch v := r.(type) {
+	case tea.Model:
+		cmd := v.Init()
+		if cmd != nil {
+			*cmds = append(*cmds, cmd)
+		}
 	case Anchor:
+		if v.OnClick != nil {
+			out[v.Prefix] = v.OnClick
+		}
+	case *Anchor:
 		if v.OnClick != nil {
 			out[v.Prefix] = v.OnClick
 		}
 	case Concat:
 		for _, item := range v.Items {
-			collectCallbacks(item, out)
+			collectCallbacks(item, out, cmds)
+		}
+	case *Concat:
+		for _, item := range v.Items {
+			collectCallbacks(item, out, cmds)
 		}
 	}
 }
@@ -238,18 +360,18 @@ func (m *Logger) getVisibleLogs() []string {
 	}
 	var height int
 	logs := make([]string, 0, m.maxHeight)
-	messages := slices.Clone(m.messages)
-	slices.Reverse(messages)
-	for i, message := range messages {
-		if message == nil || message.Len() == 0 {
+	renderable := slices.Clone(m.messages)
+	slices.Reverse(renderable)
+	for i, r := range renderable {
+		if r == nil || r.Len() == 0 {
 			m.last = i
 			break
 		}
 	}
 	if m.last != -1 {
-		messages = messages[:m.last]
+		renderable = renderable[:m.last]
 	}
-	for i, res := range messages {
+	for i, res := range renderable {
 		if i < m.offset {
 			continue
 		}

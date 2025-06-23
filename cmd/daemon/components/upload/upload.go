@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/fsnotify/fsnotify"
@@ -34,7 +35,7 @@ type Uploader struct {
 	uploadFlight flight.Cache[string, *vrpaws.UploadResponse]
 	queue        worker.Pool[string, error]
 
-	server api.Server[*vrpaws.Me, *vrpaws.UploadResponse]
+	server api.Server[*vrpaws.Me, *vrpaws.UploadPayload, *vrpaws.UploadResponse]
 }
 
 func NewModel(ctx context.Context, config *settings.Config, server *vrpaws.Server) *Uploader {
@@ -154,11 +155,31 @@ func (m *Uploader) upload(path string) (*vrpaws.UploadResponse, error) {
 		return nil, fmt.Errorf("opening %s: %w", path, err)
 	}
 
-	payload := api.UploadPayload{
-		Username: m.config.Username,
-		UserID:   m.config.UserID,
-		Token:    m.config.Token,
-		File:     f,
+	progress := logger.NewProgress()
+	var uploadingMessage = &logger.Concat{
+		Save:      false,
+		Separator: " ",
+		Items: []logger.Renderable{
+			logger.NewMessageTime(""),
+			logger.NewSpinner(),
+			logger.Messagef("Uploading %s", f.Filename),
+			progress,
+		},
+	}
+	m.program.Send(uploadingMessage)
+	payload := &vrpaws.UploadPayload{
+		SetProgress: func(r logger.Renderable, f float64) {
+			if len(uploadingMessage.Items) > 2 {
+				uploadingMessage.Items[2] = r
+			}
+			m.program.Send(progress.SetPercent(f))
+		},
+		UploadPayload: &api.UploadPayload{
+			Username: m.config.Username,
+			UserID:   m.config.UserID,
+			Token:    m.config.Token,
+			File:     f,
+		},
 	}
 
 	if f.Metadata != nil && f.Metadata.Author.ID != "" {
@@ -169,11 +190,24 @@ func (m *Uploader) upload(path string) (*vrpaws.UploadResponse, error) {
 		}
 	}
 
-	m.program.Send(logger.NewMessageTimef("Trying to upload %s...", payload.File.Filename))
 	response, err := m.server.Upload(m.ctx, payload)
 	if err != nil {
+		uploadingMessage.Items = []logger.Renderable{
+			logger.NewMessageTimef("Failed to upload %s: %v", payload.File.Filename, err),
+		}
+		time.Sleep(5 * time.Second)
+		uploadingMessage.Items = nil
 		return nil, fmt.Errorf("uploading %s: %w", payload.File.Filename, err)
 	} else {
+		go func() {
+			time.Sleep(1 * time.Second)
+			uploadingMessage.Items = []logger.Renderable{
+				logger.NewMessageTime("Done!"),
+				progress,
+			}
+			time.Sleep(3 * time.Second)
+			uploadingMessage.Items = nil
+		}()
 		m.program.Send(logger.Concat{
 			Save: true,
 			Items: []logger.Renderable{

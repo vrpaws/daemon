@@ -5,10 +5,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/progress"
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	zone "github.com/lrstanley/bubblezone"
+	"github.com/muesli/termenv"
 
+	lib "vrc-moments/pkg"
 	"vrc-moments/pkg/gradient"
 )
 
@@ -17,6 +21,99 @@ type Renderable interface {
 	Len() int
 	ShouldSave() bool
 	Raw() string
+}
+
+type Delete struct{}
+
+func (d Delete) String(int) (text string, height int) {
+	return "", 1
+}
+
+func (d Delete) Len() int {
+	return 0
+}
+
+func (d Delete) ShouldSave() bool {
+	return false
+}
+
+func (d Delete) Raw() string {
+	return ""
+}
+
+type Progress struct{ *progress.Model }
+
+func NewProgress() *Progress {
+	const frequency, damping float64 = 6.0, 0.5
+	model := progress.New(progress.WithSpringOptions(frequency, damping), progress.WithColorProfile(termenv.TrueColor))
+	return &Progress{&model}
+}
+
+func (s Progress) String(width int) (text string, height int) {
+	return render(s.View(), width)
+}
+
+func (s Progress) Len() int {
+	return lipgloss.Width(s.View())
+}
+
+func (s Progress) ShouldSave() bool {
+	return false
+}
+
+func (s Progress) Raw() string {
+	return fmt.Sprintf("%.2f%%", s.Percent())
+}
+
+type Spinner struct{ *spinner.Model }
+
+func NewSpinner() *Spinner {
+	style := lib.Random(
+		// spinner.Line,
+		spinner.Dot,
+		spinner.MiniDot,
+		// spinner.Jump,
+		// spinner.Pulse,
+		spinner.Points,
+		spinner.Globe,
+		spinner.Moon,
+		spinner.Monkey,
+		spinner.Meter,
+		spinner.Hamburger,
+		// spinner.Ellipsis,
+	)
+	model := spinner.New(spinner.WithSpinner(style))
+	return &Spinner{&model}
+}
+
+func (s Spinner) String(width int) (text string, height int) {
+	return render(s.View(), width)
+}
+
+func (s Spinner) Len() int {
+	return lipgloss.Width(s.View())
+}
+
+func (s Spinner) ShouldSave() bool {
+	return false
+}
+
+func (s Spinner) Raw() string {
+	if len(s.Model.Spinner.Frames) > 0 {
+		return s.Model.Spinner.Frames[0]
+	}
+
+	return "[ ]"
+}
+
+func (s Spinner) Init() tea.Cmd {
+	return s.Model.Tick
+}
+
+func (s Spinner) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	model, cmd := s.Model.Update(msg)
+	s.Model = &model
+	return s, cmd
 }
 
 type Anchor struct {

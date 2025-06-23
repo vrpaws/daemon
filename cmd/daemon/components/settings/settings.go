@@ -39,7 +39,7 @@ type Config struct {
 	Server    string `json:"server"`
 	LastWorld string `json:"last_world,omitempty"`
 
-	server api.Server[*vrpaws.Me, *vrpaws.UploadResponse]
+	server api.Server[*vrpaws.Me, *vrpaws.UploadPayload, *vrpaws.UploadResponse]
 	me     *vrpaws.Me
 }
 

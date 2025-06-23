@@ -18,7 +18,6 @@ import (
 
 	"vrc-moments/cmd/daemon/components/message"
 	"vrc-moments/cmd/daemon/components/settings"
-	"vrc-moments/pkg/api"
 	"vrc-moments/pkg/api/vrpaws"
 )
 
@@ -53,7 +52,7 @@ var success embed.FS
 
 type Model struct {
 	config  *settings.Config
-	server  api.Server[*vrpaws.Me, *vrpaws.UploadResponse]
+	server  *vrpaws.Server
 	program *tea.Program
 	local   *http.Server
 	loginFS http.Handler
