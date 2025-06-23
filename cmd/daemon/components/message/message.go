@@ -14,6 +14,10 @@ type (
 )
 
 type (
+	Pause bool
+)
+
+type (
 	LoginRequest  struct{}
 	ManualRequest struct{}
 )

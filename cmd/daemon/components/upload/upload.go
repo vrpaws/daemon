@@ -12,7 +12,9 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/fsnotify/fsnotify"
+	zone "github.com/lrstanley/bubblezone"
 	"github.com/pkg/browser"
 
 	"vrc-moments/cmd/daemon/components/logger"
@@ -26,6 +28,47 @@ import (
 	"vrc-moments/pkg/worker"
 )
 
+var (
+	subtle    = lipgloss.AdaptiveColor{Light: "#D9DCCF", Dark: "#383838"}
+	highlight = lipgloss.AdaptiveColor{Light: "#874BFD", Dark: "#7D56F4"}
+	special   = lipgloss.AdaptiveColor{Light: "#43BF6D", Dark: "#73F59F"}
+	redError  = lipgloss.Color("#EB4034")
+
+	pauseButtonStyle = lipgloss.NewStyle().
+				Border(lipgloss.RoundedBorder()).
+				BorderForeground(highlight).
+				Padding(0, 1).
+				Margin(1, 0).
+				SetString("Pause Uploads")
+
+	pauseButtonHoverStyle = pauseButtonStyle.
+				BorderForeground(special).
+				Foreground(special).
+				SetString("Pause Uploads")
+
+	pauseButtonClickStyle = pauseButtonStyle.
+				BorderForeground(highlight).
+				Foreground(highlight).
+				SetString("Pause Uploads")
+
+	resumeButtonStyle = lipgloss.NewStyle().
+				Border(lipgloss.RoundedBorder()).
+				BorderForeground(special).
+				Padding(0, 1).
+				Margin(1, 0).
+				SetString("Resume Uploads")
+
+	resumeButtonHoverStyle = resumeButtonStyle.
+				BorderForeground(highlight).
+				Foreground(highlight).
+				SetString("Resume Uploads")
+
+	resumeButtonClickStyle = resumeButtonStyle.
+				BorderForeground(special).
+				Foreground(special).
+				SetString("Resume Uploads")
+)
+
 type Uploader struct {
 	watcher *lib.Watcher
 	ctx     context.Context
@@ -36,6 +79,11 @@ type Uploader struct {
 	queue        worker.Pool[string, error]
 
 	server api.Server[*vrpaws.Me, *vrpaws.UploadPayload, *vrpaws.UploadResponse]
+
+	button lipgloss.Style
+	paused bool
+	width  int
+	height int
 }
 
 func NewModel(ctx context.Context, config *settings.Config, server *vrpaws.Server) *Uploader {
@@ -43,6 +91,7 @@ func NewModel(ctx context.Context, config *settings.Config, server *vrpaws.Serve
 		ctx:    ctx,
 		config: config,
 		server: server,
+		button: pauseButtonStyle,
 	}
 	uploader.uploadFlight = flight.NewCache(uploader.upload)
 	uploader.queue = worker.NewPool(runtime.NumCPU(), func(path string) error {
@@ -84,40 +133,115 @@ func (m *Uploader) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.queue.Work()
 		return m, nil
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+		return m, nil
+	case tea.MouseMsg:
+		switch msg.Action {
+		case tea.MouseActionPress:
+			if msg.Button != tea.MouseButtonLeft {
+				return m, nil
+			}
+			if zone.Get("pause-resume-button").InBounds(msg) {
+				if m.paused {
+					m.button = resumeButtonClickStyle
+				} else {
+					m.button = pauseButtonClickStyle
+				}
+				return m, nil
+			}
+		case tea.MouseActionRelease:
+			if zone.Get("pause-resume-button").InBounds(msg) {
+				if m.paused {
+					m.button = resumeButtonHoverStyle
+				} else {
+					m.button = pauseButtonHoverStyle
+				}
+			} else {
+				if m.paused {
+					m.button = resumeButtonStyle
+				} else {
+					m.button = pauseButtonStyle
+				}
+			}
+			if msg.Button == tea.MouseButtonLeft {
+				if zone.Get("pause-resume-button").InBounds(msg) {
+					m.paused = !m.paused
+					if m.watcher == nil {
+						return m, nil
+					}
+					if m.paused {
+						m.button = resumeButtonStyle
+						return m, tea.Batch(message.Callback(m.watcher.Stop), message.Cmd(message.Pause(true)))
+					} else {
+						m.button = pauseButtonStyle
+						return m, tea.Batch(message.Callback(m.watcher.Watch), message.Cmd(message.Pause(false)))
+					}
+				}
+			}
+		case tea.MouseActionMotion:
+			if zone.Get("pause-resume-button").InBounds(msg) {
+				if m.paused {
+					m.button = resumeButtonHoverStyle
+				} else {
+					m.button = pauseButtonHoverStyle
+				}
+			} else {
+				if m.paused {
+					m.button = resumeButtonStyle
+				} else {
+					m.button = pauseButtonStyle
+				}
+			}
+		}
 	default:
 		return m, nil
 	}
+	return m, nil
 }
 
 func (m *Uploader) View() string {
-	return "empty"
+	statusText := "Uploads Active"
+	if m.paused {
+		statusText = "Uploads Paused"
+	}
+
+	button := zone.Mark("pause-resume-button", m.button.Render())
+
+	strs := []string{
+		statusText,
+		button,
+	}
+
+	return lipgloss.PlaceVertical(m.height-8, lipgloss.Center,
+		lipgloss.JoinVertical(lipgloss.Center, strs...))
 }
 
 // async function to prepare and call relevant [lib.Watcher.AddPath] or upload
 func (m *Uploader) async(event *fsnotify.Event) func() tea.Msg {
+	if m.paused {
+		return nil
+	}
+
 	return func() tea.Msg {
 		if m.watcher == nil {
 			return errors.New("upload: program not yet initialized")
 		}
 
-		if fi, err := os.Stat(event.Name); err == nil {
-			if fi.IsDir() {
-				if event.Op.Has(fsnotify.Remove) {
-					err := m.watcher.RemovePath(event.Name)
-					if err != nil {
-						return fmt.Errorf("could not remove %s to watcher: %w", event.Name, err)
-					} else {
-						return nil
-					}
-				} else {
-					err := m.watcher.AddPath(event.Name)
-					if err != nil {
-						return fmt.Errorf("could not add %s to watcher: %w", event.Name, err)
-					} else {
-						return nil
-					}
+		if fi, err := os.Stat(event.Name); err == nil && fi.IsDir() {
+			if event.Op.Has(fsnotify.Remove) {
+				err := m.watcher.RemovePath(event.Name)
+				if err != nil {
+					return fmt.Errorf("could not remove %s to watcher: %w", event.Name, err)
+				}
+			} else {
+				err := m.watcher.AddPath(event.Name)
+				if err != nil {
+					return fmt.Errorf("could not add %s to watcher: %w", event.Name, err)
 				}
 			}
+			return nil
 		}
 
 		// TODO: try to match with settings.Config.Path

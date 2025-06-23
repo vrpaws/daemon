@@ -80,6 +80,7 @@ type Tabs struct {
 	activeIndex uint8
 	out         []string
 	extra       string
+	paused      bool
 	extraRender fmt.Stringer
 	spinner     spinner.Model
 }
@@ -161,6 +162,9 @@ func (m Tabs) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.extra = s
 		return m, nil
+	case message.Pause:
+		m.paused = bool(msg)
+		return m, nil
 	}
 	return m, nil
 }
@@ -192,7 +196,6 @@ func (m Tabs) View() string {
 
 	m.out[0] = normalTab.Render(m.spinner.View())
 	for i, item := range m.items {
-		// Make sure to mark each tab when rendering.
 		if m.activeIndex == uint8(i) {
 			m.out[i+1] = zone.Mark(item.prefix, item.style.Border(activeTabBorder, true).Render(item.content))
 		} else {
@@ -202,8 +205,38 @@ func (m Tabs) View() string {
 
 	row := lipgloss.JoinHorizontal(lipgloss.Top, m.out...)
 	username := activeTab.Render(m.extraRender.String())
-	gap := tabGap.Render(strings.Repeat(" ", max(0, m.width-calculateWidths(row, username))))
-	row = lipgloss.JoinHorizontal(lipgloss.Bottom, row, gap, username)
+
+	if m.paused {
+		paused := tabGap.Render(gradient.Static("Paused", gradient.PinkOrange...))
+
+		rowWidth := lipgloss.Width(row) + 2
+		usernameWidth := lipgloss.Width(username) + 2
+		pausedWidth := lipgloss.Width(paused) + 2
+
+		targetCenter := m.width / 2
+		pausedCenterOffset := pausedWidth / 2
+		leftOfPaused := max(0, targetCenter-pausedCenterOffset)
+		prePausedWidth := rowWidth
+		leftGapWidth := max(0, leftOfPaused-prePausedWidth)
+		leftGap := tabGap.Render(strings.Repeat(" ", leftGapWidth))
+
+		totalUsed := rowWidth + leftGapWidth + pausedWidth + usernameWidth
+		rightGapWidth := max(0, m.width-totalUsed)
+		rightGap := tabGap.Render(strings.Repeat(" ", rightGapWidth))
+
+		row = lipgloss.JoinHorizontal(
+			lipgloss.Bottom,
+			row,
+			leftGap,
+			paused,
+			rightGap,
+			username,
+		)
+	} else {
+		gap := tabGap.Render(strings.Repeat(" ", max(0, m.width-calculateWidths(row, username))))
+		row = lipgloss.JoinHorizontal(lipgloss.Bottom, row, gap, username)
+	}
+
 	return row
 }
 
