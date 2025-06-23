@@ -128,7 +128,10 @@ func (m *Logger) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case message.Pause:
 		m.paused = bool(msg)
-		if !m.paused {
+		if m.paused {
+			m.messages = append(m.messages[1:], NewMessageTime("Paused client"))
+		} else {
+			m.messages = append(m.messages[1:], NewMessageTime("Unpaused client"))
 			return m, m.spinner.Tick
 		}
 		return m, nil
