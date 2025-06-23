@@ -208,27 +208,24 @@ type GradientString struct {
 	Width   int
 	Colors  []string
 	Save    bool
+	*gradient.FrameData
 }
 
 const fps = float64(60)
 
 func NewGradientString(message string, colors ...string) *GradientString {
 	str := &GradientString{
-		Message: message,
-		Width:   lipgloss.Width(message),
-		Colors:  colors,
+		Message:   message,
+		Width:     lipgloss.Width(message),
+		Colors:    colors,
+		FrameData: gradient.Global.New(message, 30, colors...),
 	}
-	gradient.Global.New(str.Message, 30, str.Colors...)
 
 	return str
 }
 
 func (r *GradientString) String(maxWidth int) (string, int) {
-	return render(gradient.Global.RenderCurrent(r.Message), maxWidth)
-}
-
-func (r *GradientString) Advance() {
-	gradient.Global.Advance(r.Message)
+	return render(r.FrameData.String(), maxWidth)
 }
 
 func (r *GradientString) Len() int {
