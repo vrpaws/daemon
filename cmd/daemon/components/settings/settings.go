@@ -29,6 +29,7 @@ type Model struct {
 	inputs  []textinput.Model
 	focused int
 	err     error
+	buttons *ButtonManager
 }
 
 type Config struct {
@@ -71,21 +72,73 @@ var (
 	continueStyle = lipgloss.NewStyle().Foreground(darkGray)
 
 	normalStyle = lipgloss.NewStyle().Italic(true)
-
-	browseStyle = lipgloss.NewStyle().
-			Foreground(highlight).
-			Padding(0, 1).
-			Margin(0, 0, 0, 1).
-			SetString("Browse")
-
-	browseHoverStyle = browseStyle.
-				Foreground(special).
-				SetString("Browse")
-
-	browseClickStyle = browseStyle.
-				Foreground(highlight).
-				SetString("Browse")
 )
+
+const (
+	loginButton  = "relogin-button"
+	browseButton = "browse-button"
+)
+
+// ButtonManager handles button styles independently
+type ButtonManager struct {
+	styles map[string]*lipgloss.Style
+}
+
+func NewManager() *ButtonManager {
+	baseStyle := lipgloss.NewStyle().
+		Foreground(highlight).
+		Padding(0, 1).
+		Margin(0, 0, 0, 1)
+
+	browseStyle := lipgloss.NewStyle().Inherit(baseStyle).SetString(" Browse")
+	loginStyle := lipgloss.NewStyle().Inherit(baseStyle).SetString(" Login")
+
+	return &ButtonManager{
+		styles: map[string]*lipgloss.Style{
+			browseButton: &browseStyle,
+			loginButton:  &loginStyle,
+		},
+	}
+}
+
+func (b *ButtonManager) GetStyle(buttonID string) lipgloss.Style {
+	if style, exists := b.styles[buttonID]; exists {
+		return *style
+	}
+	return lipgloss.NewStyle()
+}
+
+func (b *ButtonManager) SetHover(buttonID string) {
+	if style, exists := b.styles[buttonID]; exists {
+		*style = style.Foreground(special)
+	}
+}
+
+func (b *ButtonManager) SetClick(buttonID string) {
+	if style, exists := b.styles[buttonID]; exists {
+		*style = style.Foreground(highlight)
+	}
+}
+
+func (b *ButtonManager) Reset(buttonID string) {
+	switch buttonID {
+	case browseButton:
+		b.AddButton(browseButton, " Browse")
+	case loginButton:
+		b.AddButton(loginButton, " Login")
+	}
+}
+
+// AddButton adds a new button to the style manager
+func (b *ButtonManager) AddButton(buttonID, text string) {
+	baseStyle := lipgloss.NewStyle().
+		Foreground(highlight).
+		Padding(0, 1).
+		Margin(0, 0, 0, 1)
+
+	style := lipgloss.NewStyle().Inherit(baseStyle).SetString(text)
+	b.styles[buttonID] = &style
+}
 
 func New(config *Config, server *vrpaws.Server) *Model {
 	var inputs []textinput.Model
@@ -147,6 +200,7 @@ models:
 		config:  config,
 		inputs:  inputs,
 		focused: 1,
+		buttons: NewManager(),
 	}
 }
 
@@ -221,32 +275,41 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if msg.Button != tea.MouseButtonLeft {
 				return m, nil
 			}
-			if zone.Get("browse-button").InBounds(msg) {
-				browseStyle = browseClickStyle
+			if zone.Get(browseButton).InBounds(msg) {
+				bsm := m.buttons
+				bsm.SetHover(browseButton)
 				return m, nil
 			}
 		case tea.MouseActionRelease:
-			if zone.Get("browse-button").InBounds(msg) {
-				browseStyle = browseHoverStyle
+			if zone.Get(browseButton).InBounds(msg) {
+				bsm := m.buttons
+				bsm.SetClick(browseButton)
 				if msg.Button == tea.MouseButtonLeft {
 					return m, m.browseDirectory
 				}
 			} else {
-				browseStyle = lipgloss.NewStyle().
-					Foreground(highlight).
-					Padding(0, 1).
-					Margin(0, 0, 0, 1).
-					SetString("Browse")
+				bsm := m.buttons
+				bsm.Reset(browseButton)
+			}
+			if zone.Get(loginButton).InBounds(msg) {
+				bsm := m.buttons
+				bsm.SetHover(loginButton)
+				if msg.Button == tea.MouseButtonLeft {
+					return m, message.Msg[message.ManualRequest]()
+				}
+			} else {
+				bsm := m.buttons
+				bsm.Reset(loginButton)
 			}
 		case tea.MouseActionMotion:
-			if zone.Get("browse-button").InBounds(msg) {
-				browseStyle = browseHoverStyle
-			} else {
-				browseStyle = lipgloss.NewStyle().
-					Foreground(highlight).
-					Padding(0, 1).
-					Margin(0, 0, 0, 1).
-					SetString("Browse")
+			for id := range m.buttons.styles {
+				if zone.Get(id).InBounds(msg) {
+					bsm := m.buttons
+					bsm.SetHover(id)
+				} else {
+					bsm := m.buttons
+					bsm.Reset(id)
+				}
 			}
 		}
 	case error:
@@ -333,13 +396,15 @@ func (m *Model) render(i int) string {
 		if m.config.me != nil {
 			suffix = fmt.Sprintf(" (%s)", m.config.me.User.Username)
 		}
+		loginButton := zone.Mark(loginButton, m.buttons.GetStyle(loginButton).Render())
+		suffix = suffix + loginButton
 	case username:
 		title = "Username"
 		m.inputs[i].TextStyle = disabledStyle
 	case path:
 		title = "Path"
 		changed(m.config.Path == m.inputs[i].Value())
-		browseButton := zone.Mark("browse-button", browseStyle.Render())
+		browseButton := zone.Mark(browseButton, m.buttons.GetStyle(browseButton).Render())
 		suffix = browseButton
 	case submit:
 		if m.focused == len(m.inputs) {

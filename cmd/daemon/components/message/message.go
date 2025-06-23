@@ -14,12 +14,20 @@ type (
 )
 
 type (
-	LoginRequest struct{}
+	LoginRequest  struct{}
+	ManualRequest struct{}
 )
 
 func Cmd[T any](v T) tea.Cmd {
 	return func() tea.Msg {
 		return v
+	}
+}
+
+func Msg[T any]() tea.Cmd {
+	return func() tea.Msg {
+		var t T
+		return t
 	}
 }
 

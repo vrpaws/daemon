@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"sync"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -57,9 +58,11 @@ type Model struct {
 	local   *http.Server
 	loginFS http.Handler
 	me      *vrpaws.Me
+	once    *sync.Once
 
 	button lipgloss.Style
 
+	url    string
 	width  int
 	height int
 	err    error
@@ -77,6 +80,7 @@ func New(config *settings.Config, server *vrpaws.Server) *Model {
 		server:  server,
 		loginFS: loginHandler,
 		button:  buttonStyle,
+		once:    new(sync.Once),
 	}
 }
 
@@ -88,7 +92,7 @@ func (m *Model) Init() tea.Cmd {
 			}
 
 			if m.config.Token == "" || m.config.Token == "Unset" {
-				return m.login()
+				return message.CallbackValue(m.login, true)
 			}
 		}
 		return nil
@@ -100,8 +104,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case error:
 		m.err = msg
 		return m, nil
+	case message.ManualRequest:
+		return m, message.CallbackValue(m.login, false)
 	case message.LoginRequest:
-		return m, m.login
+		return m, message.CallbackValue(m.login, true)
 	case *tea.Program:
 		m.program = msg
 		return m, nil
@@ -131,7 +137,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if msg.Button == tea.MouseButtonLeft {
 				if zone.Get("login-button").InBounds(msg) {
 					m.button = buttonClickStyle
-					return m, m.login
+					return m, message.CallbackValue(m.login, true)
 				}
 			}
 		case tea.MouseActionMotion:
@@ -175,63 +181,73 @@ func isLocalhostAccessible() bool {
 	return false
 }
 
-func (m *Model) login() tea.Msg {
-	var hostname string
-	var listener net.Listener
+func (m *Model) login(direct bool) tea.Msg {
 	var err error
+	m.once.Do(func() {
+		var hostname string
+		var listener net.Listener
 
-	if isLocalhostAccessible() {
-		listener, err = net.Listen("tcp", "localhost:0")
-		if err == nil {
-			hostname = "localhost"
+		if isLocalhostAccessible() {
+			listener, err = net.Listen("tcp", "localhost:0")
+			if err == nil {
+				hostname = "localhost"
+			} else {
+				listener, err = net.Listen("tcp", "127.0.0.1:0")
+				if err != nil {
+					return
+				}
+				hostname = "127.0.0.1"
+			}
 		} else {
 			listener, err = net.Listen("tcp", "127.0.0.1:0")
 			if err != nil {
-				return err
+				return
 			}
 			hostname = "127.0.0.1"
 		}
-	} else {
-		listener, err = net.Listen("tcp", "127.0.0.1:0")
-		if err != nil {
-			return err
-		}
-		hostname = "127.0.0.1"
-	}
 
-	_, port, _ := net.SplitHostPort(listener.Addr().String())
-	redirectURL := fmt.Sprintf("http://%s:%s", hostname, port)
+		_, port, _ := net.SplitHostPort(listener.Addr().String())
+		redirectURL := fmt.Sprintf("http://%s:%s", hostname, port)
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		token := r.URL.Query().Get("access_token")
-		if token != "" {
-			if user, err := m.server.ValidToken(token); err == nil {
-				m.err = nil
-				m.program.Send(user)
-			} else {
-				m.program.Send(fmt.Errorf("got token %q but it was not valid: %w", token, err))
+		mux := http.NewServeMux()
+		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			token := r.URL.Query().Get("access_token")
+			if token != "" {
+				if user, err := m.server.ValidToken(token); err == nil {
+					m.err = nil
+					m.program.Send(user)
+				} else {
+					m.program.Send(fmt.Errorf("got token %q but it was not valid: %w", token, err))
+				}
 			}
+
+			m.loginFS.ServeHTTP(w, r)
+		})
+
+		m.local = &http.Server{
+			Handler: mux,
 		}
 
-		m.loginFS.ServeHTTP(w, r)
-	})
+		go func() {
+			if err := m.local.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				log.Printf("http.Serve: %v", err)
+			}
+		}()
 
-	m.local = &http.Server{
-		Handler: mux,
+		m.url = redirectURL
+	})
+	if err != nil {
+		return err
 	}
 
-	go func() {
-		if err := m.local.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Printf("http.Serve: %v", err)
-		}
-	}()
-
-	connectURL := fmt.Sprintf(
-		"http://vrpa.ws/client/connect?redirect_url=%s&service_name=%s",
-		url.QueryEscape(redirectURL),
-		"vrpaws-client",
-	)
-
-	return browser.OpenURL(connectURL)
+	if direct {
+		connectURL := fmt.Sprintf(
+			"http://vrpa.ws/client/connect?redirect_url=%s&service_name=%s",
+			url.QueryEscape(m.url),
+			"vrpaws-client",
+		)
+		return browser.OpenURL(connectURL)
+	} else {
+		return browser.OpenURL(m.url)
+	}
 }
