@@ -80,10 +80,10 @@ type Uploader struct {
 
 	server api.Server[*vrpaws.Me, *vrpaws.UploadPayload, *vrpaws.UploadResponse]
 
-	button lipgloss.Style
-	paused bool
-	width  int
-	height int
+	paused   bool
+	hovering bool
+	width    int
+	height   int
 }
 
 func NewModel(ctx context.Context, config *settings.Config, server *vrpaws.Server) *Uploader {
@@ -91,7 +91,6 @@ func NewModel(ctx context.Context, config *settings.Config, server *vrpaws.Serve
 		ctx:    ctx,
 		config: config,
 		server: server,
-		button: pauseButtonStyle,
 	}
 	uploader.uploadFlight = flight.NewCache(uploader.upload)
 	uploader.queue = worker.NewPool(runtime.NumCPU(), func(path string) error {
@@ -108,6 +107,9 @@ func (m *Uploader) Init() tea.Cmd {
 
 func (m *Uploader) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case message.Pause:
+		m.paused = bool(msg)
+		return m, nil
 	case *fsnotify.Event:
 		return m, m.async(msg)
 	case *tea.Program:
@@ -144,27 +146,9 @@ func (m *Uploader) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			if zone.Get("pause-resume-button").InBounds(msg) {
-				if m.paused {
-					m.button = resumeButtonClickStyle
-				} else {
-					m.button = pauseButtonClickStyle
-				}
 				return m, nil
 			}
 		case tea.MouseActionRelease:
-			if zone.Get("pause-resume-button").InBounds(msg) {
-				if m.paused {
-					m.button = resumeButtonHoverStyle
-				} else {
-					m.button = pauseButtonHoverStyle
-				}
-			} else {
-				if m.paused {
-					m.button = resumeButtonStyle
-				} else {
-					m.button = pauseButtonStyle
-				}
-			}
 			if msg.Button == tea.MouseButtonLeft {
 				if zone.Get("pause-resume-button").InBounds(msg) {
 					m.paused = !m.paused
@@ -172,28 +156,15 @@ func (m *Uploader) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						return m, nil
 					}
 					if m.paused {
-						m.button = resumeButtonStyle
 						return m, tea.Batch(message.Callback(m.watcher.Stop), message.Cmd(message.Pause(true)))
 					} else {
-						m.button = pauseButtonStyle
 						return m, tea.Batch(message.Callback(m.watcher.Watch), message.Cmd(message.Pause(false)))
 					}
 				}
 			}
 		case tea.MouseActionMotion:
-			if zone.Get("pause-resume-button").InBounds(msg) {
-				if m.paused {
-					m.button = resumeButtonHoverStyle
-				} else {
-					m.button = pauseButtonHoverStyle
-				}
-			} else {
-				if m.paused {
-					m.button = resumeButtonStyle
-				} else {
-					m.button = pauseButtonStyle
-				}
-			}
+			m.hovering = zone.Get("pause-resume-button").InBounds(msg)
+			return m, nil
 		}
 	default:
 		return m, nil
@@ -207,11 +178,26 @@ func (m *Uploader) View() string {
 		statusText = "Uploads Paused"
 	}
 
-	button := zone.Mark("pause-resume-button", m.button.Render())
+	var button lipgloss.Style
+	if m.hovering {
+		if m.paused {
+			button = resumeButtonHoverStyle
+		} else {
+			button = pauseButtonHoverStyle
+		}
+	} else {
+		if m.paused {
+			button = resumeButtonStyle
+		} else {
+			button = pauseButtonStyle
+		}
+	}
+
+	buttonStr := zone.Mark("pause-resume-button", button.Render())
 
 	strs := []string{
 		statusText,
-		button,
+		buttonStr,
 	}
 
 	return lipgloss.PlaceVertical(m.height-8, lipgloss.Center,

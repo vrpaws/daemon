@@ -68,6 +68,8 @@ var (
 		BorderTop(false).
 		BorderLeft(false).
 		BorderRight(false)
+
+	pauseButton = lipgloss.NewStyle().Inherit(normalTab).SetString("❚❚")
 )
 
 type Tabs struct {
@@ -121,11 +123,15 @@ func (m Tabs) Init() tea.Cmd {
 func (m Tabs) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case spinner.TickMsg:
+		if m.paused {
+			return m, nil
+		}
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
 		return m, cmd
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
+		return m, nil
 	case tea.MouseMsg:
 		switch msg.Action {
 		case tea.MouseActionPress:
@@ -134,6 +140,16 @@ func (m Tabs) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.activeIndex = uint8(i)
 					break
 				}
+			}
+		case tea.MouseActionRelease:
+			if msg.Button == tea.MouseButtonLeft && zone.Get("resume-button").InBounds(msg) {
+				return m, message.Cmd(message.Pause(false))
+			}
+		case tea.MouseActionMotion:
+			if zone.Get("resume-button").InBounds(msg) {
+				pauseButton = pauseButton.Foreground(special).SetString("▶")
+			} else {
+				pauseButton = activeTab.SetString("▷")
 			}
 		default:
 			for _, item := range m.items {
@@ -164,9 +180,13 @@ func (m Tabs) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case message.Pause:
 		m.paused = bool(msg)
+		if !m.paused {
+			return m, m.spinner.Tick
+		}
+		return m, nil
+	default:
 		return m, nil
 	}
-	return m, nil
 }
 
 func (m Tabs) Next() Tabs {
@@ -194,7 +214,11 @@ func (m Tabs) View() string {
 		m.out = make([]string, len(m.items)+1)
 	}
 
-	m.out[0] = normalTab.Render(m.spinner.View())
+	if m.paused {
+		m.out[0] = zone.Mark("resume-button", pauseButton.Render())
+	} else {
+		m.out[0] = normalTab.Render(m.spinner.View())
+	}
 	for i, item := range m.items {
 		if m.activeIndex == uint8(i) {
 			m.out[i+1] = zone.Mark(item.prefix, item.style.Border(activeTabBorder, true).Render(item.content))

@@ -53,6 +53,7 @@ type Logger struct {
 	callbacks map[string]tea.Cmd
 	logWriter io.Writer
 	mu        sync.Mutex
+	paused    bool
 }
 
 var globalLogger *Logger
@@ -125,6 +126,12 @@ func (m *Logger) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		default:
 			return m, nil
 		}
+	case message.Pause:
+		m.paused = bool(msg)
+		if !m.paused {
+			return m, m.spinner.Tick
+		}
+		return m, nil
 	case Delete:
 		return m, nil
 	case Renderable:
@@ -138,9 +145,12 @@ func (m *Logger) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case spinner.TickMsg:
 		var cmds []tea.Cmd
 		var cmd tea.Cmd
-		m.spinner, cmd = m.spinner.Update(msg)
-		if cmd != nil {
-			cmds = append(cmds, cmd)
+
+		if !m.paused {
+			m.spinner, cmd = m.spinner.Update(msg)
+			if cmd != nil {
+				cmds = append(cmds, cmd)
+			}
 		}
 
 		_, cmd = m.propagate(msg)
@@ -312,9 +322,11 @@ func (m *Logger) View() string {
 
 	if m.quitting {
 		s.WriteString("Cleaning up...")
-	} else {
+	} else if !m.paused {
 		s.WriteString(m.spinner.View())
 		s.WriteString(" VRPaws Client working... 🐇🐕")
+	} else {
+		s.WriteString("VRPaws Client paused... 🐇🐕")
 	}
 
 	s.WriteString("\n\n")
