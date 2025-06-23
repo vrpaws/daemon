@@ -56,7 +56,7 @@ func (d Delete) Raw() string {
 type Progress struct{ *progress.Model }
 
 func NewProgress() *Progress {
-	const frequency, damping float64 = 6.0, 0.5
+	const frequency, damping float64 = 6.0, 1.5
 	model := progress.New(progress.WithSpringOptions(frequency, damping), progress.WithColorProfile(termenv.TrueColor))
 	return &Progress{&model}
 }
