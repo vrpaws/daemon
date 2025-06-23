@@ -129,9 +129,9 @@ func (m *Logger) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case message.Pause:
 		m.paused = bool(msg)
 		if m.paused {
-			m.messages = append(m.messages[1:], NewMessageTime("Paused client"))
+			m.messages = append(m.messages[1:], NewAutoDelete(NewMessageTime("Paused client"), time.Minute))
 		} else {
-			m.messages = append(m.messages[1:], NewMessageTime("Unpaused client"))
+			m.messages = append(m.messages[1:], NewAutoDelete(NewMessageTime("Unpaused client"), time.Minute))
 			return m, m.spinner.Tick
 		}
 		return m, nil
@@ -171,9 +171,13 @@ func (m *Logger) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *Logger) propagate(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
-	var containsDelete func(Renderable) bool
-	containsDelete = func(r Renderable) bool {
+	var shouldDelete func(Renderable) bool
+	shouldDelete = func(r Renderable) bool {
 		switch v := r.(type) {
+		case AutoDelete:
+			return time.Now().After(v.Expiry)
+		case *AutoDelete:
+			return time.Now().After(v.Expiry)
 		case Delete, *Delete:
 			return true
 		case Concat:
@@ -181,7 +185,7 @@ func (m *Logger) propagate(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return true
 			}
 			for _, item := range v.Items {
-				if containsDelete(item) {
+				if shouldDelete(item) {
 					return true
 				}
 			}
@@ -190,14 +194,14 @@ func (m *Logger) propagate(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return true
 			}
 			for _, item := range v.Items {
-				if containsDelete(item) {
+				if shouldDelete(item) {
 					return true
 				}
 			}
 		case Anchor:
-			return containsDelete(v.Message)
+			return shouldDelete(v.Message)
 		case *Anchor:
-			return containsDelete(v.Message)
+			return shouldDelete(v.Message)
 		}
 		return false
 	}
@@ -244,7 +248,7 @@ func (m *Logger) propagate(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if r == nil {
 			return false
 		}
-		return containsDelete(r)
+		return shouldDelete(r)
 	})
 
 	for i, r := range m.messages {

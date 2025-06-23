@@ -23,6 +23,18 @@ type Renderable interface {
 	Raw() string
 }
 
+type AutoDelete struct {
+	Renderable
+	Expiry time.Time
+}
+
+func NewAutoDelete(r Renderable, duration time.Duration) AutoDelete {
+	return AutoDelete{
+		Renderable: r,
+		Expiry:     time.Now().Add(duration),
+	}
+}
+
 type Delete struct{}
 
 func (d Delete) String(int) (text string, height int) {
