@@ -186,10 +186,10 @@ func onReady(program *tea.Program) func() {
 
 		showItem := systray.AddMenuItem("Show Window", "Restore the TUI window")
 		showItem.Disable()
+		loginItem := systray.AddMenuItem("Login", "Login to VRPaws client")
 		systray.AddSeparator()
 		pauseItem := systray.AddMenuItem("Pause", "Pause the app")
 		browseItem := systray.AddMenuItem("Set VRChat Folder", "Set the VRChat Pictures Folder")
-		loginItem := systray.AddMenuItem("Login", "Login to VRPaws client")
 
 		systray.AddSeparator()
 		exitItem := systray.AddMenuItem("Exit", "Exit the app")
@@ -199,6 +199,10 @@ func onReady(program *tea.Program) func() {
 			} else {
 				pauseItem.Uncheck()
 			}
+		}))
+		program.Send(message.SetUsername(func(username string) {
+			loginItem.SetTitle(fmt.Sprintf("Logged in (%s)", username))
+			loginItem.Check()
 		}))
 
 		go func() {

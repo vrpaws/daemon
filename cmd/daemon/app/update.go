@@ -32,6 +32,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.setPause = msg
 		m.setPause(m.paused)
 		return m, message.Cmd(logger.NewAutoDelete(logger.NewMessageTime("Tray icon ready!"), 5*time.Second))
+	case message.SetUsername:
+		m.setUsername = msg
+		if m.me != nil {
+			m.setUsername(m.me.User.Username)
+		}
+		return m, nil
 	case tea.Cmd:
 		return m, msg
 	case io.Writer:
@@ -66,6 +72,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.propagate(msg, &m.logger)
 	case *vrpaws.Me:
 		m.me = msg
+		if m.setUsername != nil {
+			m.setUsername(m.me.User.Username)
+		}
 		return m.propagate(msg)
 	case []error:
 		return m, tea.Sequence(message.Cmds(msg...)...)

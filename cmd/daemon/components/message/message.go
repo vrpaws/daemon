@@ -18,7 +18,8 @@ type (
 )
 
 type (
-	SetPause func(bool)
+	SetPause    func(bool)
+	SetUsername func(string)
 )
 
 type (

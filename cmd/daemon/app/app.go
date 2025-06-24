@@ -40,6 +40,8 @@ type Model struct {
 
 	setPause func(bool)
 	paused   bool
+
+	setUsername func(string)
 }
 
 type screen struct {
