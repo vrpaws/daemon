@@ -23,6 +23,7 @@ type (
 
 type (
 	LoginRequest  struct{}
+	BrowseRequest struct{}
 	ManualRequest struct{}
 )
 

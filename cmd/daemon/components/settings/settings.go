@@ -212,6 +212,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	cmds := make([]tea.Cmd, len(m.inputs))
 
 	switch msg := msg.(type) {
+	case message.BrowseRequest:
+		return m, m.browseDirectory
 	case *vrpaws.Me:
 		m.config.me = msg
 		m.config.Token = msg.User.AccessToken

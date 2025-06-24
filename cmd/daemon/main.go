@@ -188,6 +188,8 @@ func onReady(program *tea.Program) func() {
 		showItem.Disable()
 		systray.AddSeparator()
 		pauseItem := systray.AddMenuItem("Pause", "Pause the app")
+		browseItem := systray.AddMenuItem("Set VRChat Folder", "Set the VRChat Pictures Folder")
+		loginItem := systray.AddMenuItem("Login", "Login to VRPaws client")
 
 		systray.AddSeparator()
 		exitItem := systray.AddMenuItem("Exit", "Exit the app")
@@ -202,6 +204,10 @@ func onReady(program *tea.Program) func() {
 		go func() {
 			for {
 				select {
+				case <-browseItem.ClickedCh:
+					program.Send(message.BrowseRequest{})
+				case <-loginItem.ClickedCh:
+					program.Send(message.LoginRequest{})
 				case <-showItem.ClickedCh:
 					continue
 				case <-pauseItem.ClickedCh:
