@@ -48,7 +48,7 @@ var (
 				SetString("Login to VRPaws")
 )
 
-//go:embed all:success/out/*
+//go:embed all:next/out/*
 var success embed.FS
 
 type Model struct {
@@ -69,7 +69,7 @@ type Model struct {
 }
 
 func New(config *settings.Config, server *vrpaws.Server) *Model {
-	loginFS, err := fs.Sub(success, "success/out")
+	loginFS, err := fs.Sub(success, "next/out")
 	if err != nil {
 		log.Fatal(err)
 	}
