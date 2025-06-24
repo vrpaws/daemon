@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/lxn/win"
 	"golang.org/x/sys/windows"
 )
 
@@ -29,5 +30,19 @@ func DisableQuickEdit() {
 	err = windows.SetConsoleMode(winConsole, mode)
 	if err != nil {
 		log.Println(err)
+	}
+}
+
+func HideConsole() {
+	hwnd := win.GetConsoleWindow()
+	if hwnd != 0 {
+		win.ShowWindow(hwnd, win.SW_HIDE)
+	}
+}
+
+func ShowConsole() {
+	hwnd := win.GetConsoleWindow()
+	if hwnd != 0 {
+		win.ShowWindow(hwnd, win.SW_SHOW)
 	}
 }

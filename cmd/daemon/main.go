@@ -2,15 +2,19 @@ package main
 
 import (
 	"cmp"
+	_ "embed"
 	"errors"
 	"fmt"
+	_ "net/http/pprof"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/fsnotify/fsnotify"
+	"github.com/getlantern/systray"
 	_ "github.com/joho/godotenv/autoload"
 	"github.com/sqweek/dialog"
 
@@ -47,6 +51,7 @@ func main() {
 	program := model.Run()
 	logFile, done := lib.LogOutput(&model)
 	defer done()
+	go systray.Run(onReady(program), func() {})
 
 	program.Send(logFile)
 	program.Send(program)
@@ -168,4 +173,49 @@ func getPatterns(config *settings.Config) ([]string, error) {
 	}
 
 	return patterns, config.Save()
+}
+
+//go:embed src/icon.ico
+var trayIcon []byte
+
+func onReady(program *tea.Program) func() {
+	return func() {
+		systray.SetIcon(trayIcon)
+		systray.SetTitle("VRPaws Client")
+		systray.SetTooltip("VRPaws Client")
+
+		showItem := systray.AddMenuItem("Show Window", "Restore the TUI window")
+		showItem.Disable()
+		systray.AddSeparator()
+		pauseItem := systray.AddMenuItem("Pause", "Pause the app")
+
+		systray.AddSeparator()
+		exitItem := systray.AddMenuItem("Exit", "Exit the app")
+		program.Send(message.SetPause(func(paused bool) {
+			if paused {
+				pauseItem.Checked()
+			} else {
+				pauseItem.Uncheck()
+			}
+		}))
+
+		go func() {
+			for {
+				select {
+				case <-showItem.ClickedCh:
+					continue
+				case <-pauseItem.ClickedCh:
+					if pauseItem.Checked() {
+						pauseItem.Uncheck()
+					} else {
+						pauseItem.Check()
+					}
+					program.Send(message.Pause(pauseItem.Checked()))
+				case <-exitItem.ClickedCh:
+					program.Send(tea.Quit())
+					return
+				}
+			}
+		}()
+	}
 }

@@ -18,6 +18,10 @@ type (
 )
 
 type (
+	SetPause func(bool)
+)
+
+type (
 	LoginRequest  struct{}
 	ManualRequest struct{}
 )

@@ -9,3 +9,7 @@ import (
 func DisableQuickEdit() {
 	log.Println("Quick edit is not supported on Linux")
 }
+
+func HideConsole() {}
+
+func ShowConsole() {}

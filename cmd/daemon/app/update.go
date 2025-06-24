@@ -2,6 +2,7 @@ package app
 
 import (
 	"io"
+	"time"
 
 	"github.com/charmbracelet/bubbles/cursor"
 	"github.com/charmbracelet/bubbles/spinner"
@@ -10,6 +11,7 @@ import (
 
 	"vrc-moments/cmd/daemon/components/logger"
 	"vrc-moments/cmd/daemon/components/message"
+	"vrc-moments/pkg"
 	"vrc-moments/pkg/api"
 	"vrc-moments/pkg/api/vrpaws"
 )
@@ -20,6 +22,16 @@ func (m *Model) Init() tea.Cmd {
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case message.Pause:
+		m.paused = bool(msg)
+		if m.setPause != nil {
+			m.setPause(m.paused)
+		}
+		return m.propagate(msg, &m.logger, &m.tabs, &m.uploader)
+	case message.SetPause:
+		m.setPause = msg
+		m.setPause(m.paused)
+		return m, message.Cmd(logger.NewAutoDelete(logger.NewMessageTime("Tray icon ready!"), 5*time.Second))
 	case tea.Cmd:
 		return m, msg
 	case io.Writer:
@@ -33,6 +45,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.window.Width != msg.Width || m.window.Height != msg.Height {
 			m.window.Width = msg.Width
 			m.window.Height = msg.Height
+			if m.window.Width == 0 && m.window.Height == 0 {
+				go lib.HideConsole()
+			} else {
+				go lib.ShowConsole()
+			}
 			return m.propagate(msg)
 		}
 	case spinner.TickMsg:

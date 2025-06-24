@@ -37,6 +37,9 @@ type Model struct {
 	settings tea.Model
 	footer   tea.Model
 	logFile  io.Writer
+
+	setPause func(bool)
+	paused   bool
 }
 
 type screen struct {
