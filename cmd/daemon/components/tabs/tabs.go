@@ -151,13 +151,12 @@ func (m Tabs) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else {
 				pauseButton = activeTab.SetString("▷")
 			}
-		default:
-			for _, item := range m.items {
-				if zone.Get(item.prefix).InBounds(msg) {
-					item.style = item.style.Foreground(lipgloss.Color("#ffb3e3")).Bold(true)
-				} else {
-					item.style = item.style.UnsetForeground().UnsetBold()
-				}
+		}
+		for _, item := range m.items {
+			if zone.Get(item.prefix).InBounds(msg) {
+				item.style = item.style.Foreground(lipgloss.Color("#FFB3E3")).Bold(true)
+			} else {
+				item.style = item.style.UnsetForeground().UnsetBold()
 			}
 		}
 		return m, nil
