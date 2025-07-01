@@ -215,7 +215,10 @@ func (m *Uploader) async(event *fsnotify.Event) func() tea.Msg {
 			return errors.New("upload: program not yet initialized")
 		}
 
-		if fi, err := os.Stat(event.Name); err == nil && fi.IsDir() {
+		fi, err := os.Stat(event.Name)
+		if err != nil {
+			return err
+		} else if fi.IsDir() {
 			if event.Op.Has(fsnotify.Remove) {
 				err := m.watcher.RemovePath(event.Name)
 				if err != nil {
