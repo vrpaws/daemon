@@ -25,6 +25,7 @@ import (
 	"vrc-moments/pkg/api/vrpaws"
 	"vrc-moments/pkg/flight"
 	"vrc-moments/pkg/gradient"
+	"vrc-moments/pkg/once"
 	"vrc-moments/pkg/worker"
 )
 
@@ -77,6 +78,7 @@ type Uploader struct {
 
 	uploadFlight flight.Cache[string, *vrpaws.UploadResponse]
 	queue        worker.Pool[string, error]
+	notified     *once.Once[string, bool]
 
 	server api.Server[*vrpaws.Me, *vrpaws.UploadPayload, *vrpaws.UploadResponse]
 
@@ -88,9 +90,10 @@ type Uploader struct {
 
 func NewModel(ctx context.Context, config *settings.Config, server *vrpaws.Server) *Uploader {
 	uploader := &Uploader{
-		ctx:    ctx,
-		config: config,
-		server: server,
+		ctx:      ctx,
+		config:   config,
+		notified: once.New[string, bool](),
+		server:   server,
 	}
 	uploader.uploadFlight = flight.NewCache(uploader.upload)
 	uploader.queue = worker.NewPool(runtime.NumCPU(), func(path string) error {
@@ -241,9 +244,9 @@ func (m *Uploader) async(event *fsnotify.Event) func() tea.Msg {
 		dir, file := filepath.Split(event.Name)
 		folder := filepath.Base(dir)
 		switch {
-		case event.Op.Has(fsnotify.Create):
+		case event.Op.Has(fsnotify.Create) && !m.notified.Stored(file):
 			return logger.NewMessageTimef("A new photo was taken at %s", filepath.Join(folder, file))
-		case event.Op.Has(fsnotify.Rename):
+		case event.Op.Has(fsnotify.Rename) && !m.notified.Stored(file):
 			return logger.NewMessageTimef("A new photo was moved to %s", filepath.Join(folder, file))
 		case event.Op.Has(fsnotify.Write):
 			return <-m.queue.Promise(event.Name)
