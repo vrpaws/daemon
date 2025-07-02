@@ -435,64 +435,63 @@ func (m *Model) discard() tea.Cmd {
 }
 
 func (m *Model) save() tea.Cmd {
-	var cmds []tea.Cmd
-
-	for i, input := range m.inputs {
-		value := input.Value()
-		switch i {
-		case username:
-			if m.config.Username != value {
-				cmds = append(cmds, func() tea.Msg {
+	return func() tea.Msg {
+		var cmds []tea.Cmd
+		for i, input := range m.inputs {
+			value := input.Value()
+			switch i {
+			case username:
+				if m.config.Username != value {
 					if err := m.config.SetUsername(value); err != nil {
 						m.inputs[i].TextStyle = errorStyle.Italic(true)
-						return err
+						cmds = append(cmds, message.Cmd(fmt.Errorf("could not set username: %w", err)))
+						continue
 					}
 					m.inputs[i].Placeholder = value
-					return message.UsernameSet(value)
-				})
-			}
-		case token:
-			if m.config.Token != value {
-				cmds = append(cmds, func() tea.Msg {
+					cmds = append(cmds, message.Cmd(message.UsernameSet(value)))
+				}
+			case token:
+				if m.config.Token != value {
 					if err := m.config.SetToken(value); err != nil {
-						return err
+						cmds = append(cmds, message.Cmd(fmt.Errorf("could not set token: %w", err)))
+						continue
 					}
 					m.inputs[i].Placeholder = value
-					return message.TokenSet(value)
-				})
-			}
-		case path:
-			if m.config.Path != value {
-				patterns, err := lib.ExpandPatterns(true, false, value)
-				if err != nil {
-					m.inputs[i].TextStyle = errorStyle.Italic(true)
-					cmds = append(cmds, message.Cmd(err))
-					continue
+					cmds = append(cmds, message.Cmd(message.TokenSet(value)))
 				}
-				if err := m.config.SetPath(value); err != nil {
-					return message.Cmd(err)
+			case path:
+				if m.config.Path != value {
+					patterns, err := lib.ExpandPatterns(true, false, value)
+					if err != nil {
+						m.inputs[i].TextStyle = errorStyle.Italic(true)
+						cmds = append(cmds, message.Cmd(fmt.Errorf("could not set path: %w", err)))
+						continue
+					}
+					if err := m.config.SetPath(value); err != nil {
+						cmds = append(cmds, message.Cmd(fmt.Errorf("could not set path: %w", err)))
+						continue
+					}
+					m.inputs[i].Placeholder = value
+					cmds = append(cmds, message.Cmd(message.PathSet(value)), message.Cmd(message.PatternsSet(patterns)))
 				}
-				m.inputs[i].Placeholder = value
-				cmds = append(cmds, message.Cmd(message.PathSet(value)), message.Cmd(message.PatternsSet(patterns)))
-			}
-		case serverURL:
-			if m.config.Server != value {
-				cmds = append(cmds, func() tea.Msg {
+			case serverURL:
+				if m.config.Server != value {
 					if err := m.config.SetServer(value); err != nil {
-						return err
+						cmds = append(cmds, message.Cmd(fmt.Errorf("could not set server: %w", err)))
+						continue
 					}
 					m.inputs[i].Placeholder = value
-					return message.ServerSet(value)
-				})
+					cmds = append(cmds, message.Cmd(message.ServerSet(value)))
+				}
 			}
 		}
-	}
 
-	if len(cmds) == 0 {
-		return nil
-	}
+		if len(cmds) == 0 {
+			return nil
+		}
 
-	return tea.Batch(cmds...)
+		return tea.Batch(cmds...)
+	}
 }
 
 // nextInput focuses the next input field
