@@ -23,9 +23,10 @@ import (
 )
 
 var (
-	subtle    = lipgloss.AdaptiveColor{Light: "#D9DCCF", Dark: "#383838"}
-	highlight = lipgloss.AdaptiveColor{Light: "#874BFD", Dark: "#7D56F4"}
-	special   = lipgloss.AdaptiveColor{Light: "#43BF6D", Dark: "#73F59F"}
+	subtle          = lipgloss.AdaptiveColor{Light: "#D9DCCF", Dark: "#383838"}
+	highlight       = lipgloss.AdaptiveColor{Light: "#874BFD", Dark: "#7D56F4"}
+	highlightDarker = lipgloss.AdaptiveColor{Light: "#6349C6", Dark: "#5640AC"}
+	special         = lipgloss.AdaptiveColor{Light: "#43BF6D", Dark: "#73F59F"}
 
 	divider = lipgloss.NewStyle().
 		SetString("•").
@@ -154,9 +155,9 @@ func (m Tabs) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		for _, item := range m.items {
 			if zone.Get(item.prefix).InBounds(msg) {
-				item.style = item.style.Foreground(lipgloss.Color("#FFB3E3")).Bold(true)
+				item.style = item.style.Foreground(lipgloss.Color("#FFB3E3")).Bold(true).BorderForeground(highlightDarker)
 			} else {
-				item.style = item.style.UnsetForeground().UnsetBold()
+				item.style = item.style.UnsetForeground().UnsetBold().BorderForeground(highlight)
 			}
 		}
 		return m, nil
