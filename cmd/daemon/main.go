@@ -164,10 +164,11 @@ func getPatterns(config *settings.Config) ([]string, error) {
 
 	prints := filepath.Join("!"+config.Path, "Prints", "***")
 	stickers := filepath.Join("!"+config.Path, "Stickers", "***")
+	emojis := filepath.Join("!"+config.Path, "Emoji", "***")
 	config.Path = filepath.Join(config.Path, "***")
 	config.Path = strings.ReplaceAll(config.Path, `\`, "/")
 
-	patterns, err := lib.ExpandPatterns(true, false, config.Path, prints, stickers)
+	patterns, err := lib.ExpandPatterns(true, false, config.Path, prints, stickers, emojis)
 	if err != nil {
 		return nil, err
 	}
