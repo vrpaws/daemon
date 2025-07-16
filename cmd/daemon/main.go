@@ -41,7 +41,7 @@ func main() {
 	remote := getRemote(config)
 	usernameErr := getUsername(config)
 	roomErr := getRoom(config)
-	patterns, patternErr := getPatterns(config)
+	patterns, patternErr := getPatterns(config, "")
 
 	if errors.Is(saveError, os.ErrNotExist) {
 		saveError = config.Save()
@@ -136,7 +136,9 @@ func getRoom(config *settings.Config) error {
 	return nil
 }
 
-func getPatterns(config *settings.Config) ([]string, error) {
+var retries = 0
+
+func getPatterns(config *settings.Config, extra string) ([]string, error) {
 	if config.Path == "Unset" {
 		startDir := "."
 		homedir, err := os.UserHomeDir()
@@ -146,8 +148,17 @@ func getPatterns(config *settings.Config) ([]string, error) {
 				startDir = vrcDefault
 			}
 		}
-		directory, err := dialog.Directory().SetStartDir(startDir).Title("Choose your VRChat Photos folder").Browse()
+
+		if extra == "" && config.Path != "." {
+			extra = fmt.Sprintf("\nDetected directory: %s", startDir)
+		}
+
+		directory, err := dialog.Directory().SetStartDir(startDir).Title("Choose your VRChat Photos folder" + extra).Browse()
 		if err != nil {
+			if errors.Is(err, dialog.ErrCancelled) && retries < 3 {
+				retries = 3
+				return getPatterns(config, "\nDid you mean to cancel? Cancel again to abort.")
+			}
 			return nil, fmt.Errorf("error getting directory: %w", err)
 		}
 
@@ -170,7 +181,25 @@ func getPatterns(config *settings.Config) ([]string, error) {
 
 	patterns, err := lib.ExpandPatterns(true, false, config.Path, prints, stickers, emojis)
 	if err != nil {
+		if retries < 3 {
+			retries++
+
+			log.Printf(`Could not expand folder "%s", trying again: %v`, config.Path, err)
+			err := strings.Split(err.Error(), ": ")
+			sprintf := fmt.Sprintf("\nInvalid folder %s: - %s", config.Path, err[len(err)-1])
+
+			config.Path = "Unset"
+			return getPatterns(config, sprintf)
+		}
 		return nil, err
+	}
+
+	if len(patterns) == 0 {
+		log.Printf(`Invalid folder, trying again: "%v"`, config.Path)
+		if retries < 3 {
+			retries++
+			return getPatterns(config, fmt.Sprintf("\nInvalid folder: %s", config.Path))
+		}
 	}
 
 	return patterns, config.Save()
