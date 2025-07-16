@@ -5,6 +5,7 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
+	"log"
 	_ "net/http/pprof"
 	"net/url"
 	"os"
@@ -123,9 +124,6 @@ func getUsername(config *settings.Config) error {
 }
 
 func getRoom(config *settings.Config) error {
-	if config.LastWorld != "Unknown" {
-		return nil
-	}
 	roomName, err := vrc.ExtractCurrentRoomName(vrc.DefaultLogPath)
 	if err != nil {
 		return fmt.Errorf("error getting room name: %w", err)

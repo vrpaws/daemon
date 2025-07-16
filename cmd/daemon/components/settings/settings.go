@@ -6,12 +6,16 @@ import (
 	"log"
 	"math"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/fsnotify/fsnotify"
 	zone "github.com/lrstanley/bubblezone"
 	"github.com/sqweek/dialog"
 
@@ -30,6 +34,12 @@ type Model struct {
 	focused int
 	err     error
 	buttons *ButtonManager
+
+	watcher     *lib.Watcher
+	extractor   *vrc.RoomNameExtractor
+	file        *os.File
+	reading     *sync.Mutex
+	selfMessage tea.Msg
 }
 
 type Config struct {
@@ -196,20 +206,73 @@ models:
 		config.me = me
 	}
 
-	return &Model{
+	model := &Model{
 		config:  config,
 		inputs:  inputs,
 		focused: 1,
 		buttons: NewManager(),
 	}
+
+	logFile, err := vrc.OpenLastLogFile(vrc.DefaultLogPath)
+	if err == nil {
+		model.file = logFile
+		model.extractor = vrc.NewRoomNameExtractor(logFile)
+		model.reading = new(sync.Mutex)
+
+		model.watcher = lib.NewWatcher([]string{vrc.DefaultLogPath, logFile.Name()}, 500*time.Millisecond, func(event *fsnotify.Event) {
+			model.reading.Lock()
+			defer model.reading.Unlock()
+			if event.Has(fsnotify.Create) {
+				model.file.Close()
+				logFile, err = vrc.OpenLastLogFile(vrc.DefaultLogPath)
+				if err != nil {
+					model.selfMessage = err
+					return
+				}
+
+				err = model.watcher.SetPaths([]string{vrc.DefaultLogPath, logFile.Name()})
+				if err != nil {
+					model.selfMessage = err
+				}
+
+				model.file = logFile
+				model.extractor = vrc.NewRoomNameExtractor(logFile)
+				return
+			}
+
+			if filepath.Base(logFile.Name()) != filepath.Base(event.Name) {
+				return
+			}
+
+			roomName, err := model.extractor.Current()
+			if err != nil {
+				model.selfMessage = err
+				return
+			}
+
+			model.selfMessage = message.RoomSet(roomName)
+		})
+	}
+
+	return model
 }
 
 func (m *Model) Init() tea.Cmd {
-	return tea.Batch(m.save(), textinput.Blink, m.Poll())
+	cmds := []tea.Cmd{m.save(), textinput.Blink, m.Poll()}
+	if m.watcher != nil {
+		cmds = append(cmds, message.Callback(m.watcher.Watch))
+	}
+	return tea.Batch(cmds...)
 }
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	cmds := make([]tea.Cmd, len(m.inputs))
+
+	if m.selfMessage != nil {
+		msg := m.selfMessage
+		m.selfMessage = nil
+		m.Update(msg)
+	}
 
 	switch msg := msg.(type) {
 	case message.BrowseRequest:
@@ -563,7 +626,8 @@ func (c *Config) SetRoom(room string) {
 }
 
 func (m *Model) Poll() tea.Cmd {
-	return tea.Tick(5*time.Second, func(t time.Time) tea.Msg {
+	return tea.Tick(30*time.Minute, func(t time.Time) tea.Msg {
+
 		roomName, err := vrc.ExtractCurrentRoomName(vrc.DefaultLogPath)
 		if err != nil {
 			return err

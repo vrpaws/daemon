@@ -13,6 +13,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	lib "vrc-moments/pkg"
 )
 
 var DefaultLogPath = filepath.Join(os.Getenv("AppData"), "..", "LocalLow", "VRChat", "VRChat")
@@ -42,11 +44,69 @@ func ExtractUsernameFromLogs(logDir string) (string, error) {
 	return ExtractReader(logDir, Scanner, usernameRegex)
 }
 
+// Deprecated: Use RoomNameExtractor
 func ExtractCurrentRoomName(logDir string) (string, error) {
 	if logDir == "" {
 		logDir = DefaultLogPath
 	}
+
+	if !lib.FileExists(logDir) {
+		return "Unknown", nil
+	}
+
 	return ExtractReader(logDir, ReverseLines, roomNameRegex)
+}
+
+type ReadSeekerAt interface {
+	io.ReadSeeker
+	io.ReaderAt
+}
+
+type RoomNameExtractor struct {
+	reader       ReadSeekerAt
+	lastRoomName string
+	lastOffset   int64
+}
+
+func NewRoomNameExtractor(r ReadSeekerAt) *RoomNameExtractor {
+	if r == nil {
+		panic("nil ReadSeekerAt")
+	}
+
+	return &RoomNameExtractor{
+		reader:       r,
+		lastRoomName: "Unknown",
+	}
+}
+
+func (r *RoomNameExtractor) Current() (string, error) {
+	totalSize, err := r.reader.Seek(0, io.SeekEnd)
+	if err != nil {
+		return r.lastRoomName, err
+	}
+	if totalSize == 0 || totalSize == r.lastOffset {
+		return r.lastRoomName, nil
+	}
+	if r.lastOffset > totalSize {
+		// reader was truncated or rotated
+		r.lastOffset = 0
+	}
+
+	section := io.NewSectionReader(r.reader, r.lastOffset, totalSize-r.lastOffset)
+
+	for line := range ReverseLines(section) {
+		matches := roomNameRegex.FindSubmatch(line)
+		if len(matches) > 1 {
+			roomName := string(matches[1])
+			r.lastRoomName = roomName
+			r.lastOffset = totalSize
+			return roomName, nil
+		}
+	}
+
+	// Still update offset even if no room name match was found
+	r.lastOffset = totalSize
+	return r.lastRoomName, nil
 }
 
 type logFile struct {
@@ -55,38 +115,10 @@ type logFile struct {
 }
 
 func ExtractReader(logDir string, reader func(io.ReadSeeker) iter.Seq2[[]byte, error], match *regexp.Regexp) (string, error) {
-	pattern := filepath.Join(logDir, "output_log_*.txt")
-
-	logFiles, err := filepath.Glob(pattern)
+	logs, err := GetLogFiles(logDir)
 	if err != nil {
-		return "", fmt.Errorf("failed to list log files: %w", err)
+		return "", err
 	}
-
-	if len(logFiles) == 0 {
-		return "", errors.New("no log files found")
-	}
-
-	var logs []logFile
-	for _, file := range logFiles {
-		baseName := filepath.Base(file)
-		timestamp := strings.TrimPrefix(baseName, "output_log_")
-		timestamp = strings.TrimSuffix(timestamp, ".txt")
-
-		fileTime, err := time.Parse("2006-01-02_15-04-05", timestamp)
-		if err != nil {
-			continue
-		}
-
-		logs = append(logs, logFile{path: file, time: fileTime})
-	}
-
-	if len(logs) == 0 {
-		return "", errors.New("no log files found")
-	}
-
-	slices.SortFunc(logs, func(a, b logFile) int {
-		return b.time.Compare(a.time) // Sort by time descending
-	})
 
 	for _, l := range logs {
 		file, err := os.Open(l.path)
@@ -105,6 +137,73 @@ func ExtractReader(logDir string, reader func(io.ReadSeeker) iter.Seq2[[]byte, e
 	}
 
 	return "", errors.New("no matching line found in any log files")
+}
+
+func ExtractReaderOffset(reader iter.Seq2[[]byte, error], match *regexp.Regexp) (string, error) {
+	for line := range reader {
+		matches := match.FindSubmatch(line)
+		if len(matches) > 1 {
+			return string(matches[1]), nil
+		}
+	}
+
+	return "", errors.New("no matching line found in any log files")
+}
+
+func OpenLastLogFile(logDir string) (*os.File, error) {
+	if logDir == "" {
+		logDir = DefaultLogPath
+	}
+	if !lib.FileExists(logDir) {
+		return nil, errors.New("no logs found")
+	}
+
+	logs, err := GetLogFiles(logDir)
+	if err != nil {
+		return nil, err
+	}
+	if len(logs) == 0 {
+		return nil, errors.New("no logs found")
+	}
+
+	return os.Open(logs[0].path)
+}
+
+func GetLogFiles(logDir string) ([]logFile, error) {
+	pattern := filepath.Join(logDir, "output_log_*.txt")
+
+	logFiles, err := filepath.Glob(pattern)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list log files: %w", err)
+	}
+
+	if len(logFiles) == 0 {
+		return nil, errors.New("no log files found")
+	}
+
+	var logs []logFile
+	for _, file := range logFiles {
+		baseName := filepath.Base(file)
+		timestamp := strings.TrimPrefix(baseName, "output_log_")
+		timestamp = strings.TrimSuffix(timestamp, ".txt")
+
+		fileTime, err := time.Parse("2006-01-02_15-04-05", timestamp)
+		if err != nil {
+			continue
+		}
+
+		logs = append(logs, logFile{path: file, time: fileTime})
+	}
+
+	if len(logs) == 0 {
+		return nil, errors.New("no log files found")
+	}
+
+	slices.SortFunc(logs, func(a, b logFile) int {
+		return b.time.Compare(a.time) // Sort by time descending
+	})
+
+	return logs, nil
 }
 
 func Scanner(r io.ReadSeeker) iter.Seq2[[]byte, error] {
