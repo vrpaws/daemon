@@ -182,9 +182,9 @@ func SelectVRChatDirectory(path string) (string, []string, error) {
 		directory = strings.TrimRight(directory, `*\/`+string(filepath.Separator))
 	}
 
-	prints := filepath.Join("!"+directory, "Prints", "***")
-	stickers := filepath.Join("!"+directory, "Stickers", "***")
-	emojis := filepath.Join("!"+directory, "Emoji", "***")
+	prints := "!" + filepath.Join(directory, "Prints", "***")
+	stickers := "!" + filepath.Join(directory, "Stickers", "***")
+	emojis := "!" + filepath.Join(directory, "Emoji", "***")
 	directory = filepath.Join(directory, "***")
 	directory = strings.ReplaceAll(directory, `\`, "/")
 

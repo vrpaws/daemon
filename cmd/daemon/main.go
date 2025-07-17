@@ -171,9 +171,9 @@ func getPatterns(config *settings.Config, extra string) ([]string, error) {
 		config.Path = strings.TrimRight(config.Path, `*\/`+string(filepath.Separator))
 	}
 
-	prints := filepath.Join("!"+config.Path, "Prints", "***")
-	stickers := filepath.Join("!"+config.Path, "Stickers", "***")
-	emojis := filepath.Join("!"+config.Path, "Emoji", "***")
+	prints := "!" + filepath.Join(config.Path, "Prints", "***")
+	stickers := "!" + filepath.Join(config.Path, "Stickers", "***")
+	emojis := "!" + filepath.Join(config.Path, "Emoji", "***")
 	config.Path = filepath.Join(config.Path, "***")
 	config.Path = strings.ReplaceAll(config.Path, `\`, "/")
 
