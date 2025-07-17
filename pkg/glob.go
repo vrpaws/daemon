@@ -14,7 +14,7 @@ import (
 //   - "!path"       – exclude exactly that directory (but not its contents)
 //   - "!path/*"     – exclude files directly under that directory
 //   - "!path/***"   – exclude that directory and everything under it
-func ExpandPatterns(matchDirs, matchFiles bool, patterns ...string) ([]string, error) {
+func ExpandPatterns(matchDirs, matchFiles bool, limit int, patterns ...string) ([]string, error) {
 	// default to files-only
 	if !matchDirs && !matchFiles {
 		matchFiles = true
@@ -24,7 +24,12 @@ func ExpandPatterns(matchDirs, matchFiles bool, patterns ...string) ([]string, e
 	if err != nil {
 		return nil, err
 	}
+	pm.SetLimit(limit)
 
+	return pm.Expand()
+}
+
+func (pm *PatternMatcher) Expand() ([]string, error) {
 	var results []string
 	for _, inc := range pm.includes {
 		if strings.Contains(inc, "**") {
@@ -83,6 +88,13 @@ type PatternMatcher struct {
 	exclRecursive  []string
 	matchDirs      bool
 	matchFiles     bool
+
+	limit int
+	count int
+}
+
+func (pm *PatternMatcher) SetLimit(n int) {
+	pm.limit = n
 }
 
 // NewPatternMatcher parses the patterns (with ~ expansion) into a matcher.
@@ -134,6 +146,10 @@ func NewPatternMatcher(matchDirs, matchFiles bool, patterns ...string) (*Pattern
 
 // Matches reports whether a path (file or dir) passes includes/excludes & flags.
 func (pm *PatternMatcher) Matches(path string) (bool, error) {
+	if pm.limit > 0 && pm.count >= pm.limit {
+		return false, nil
+	}
+
 	fi, err := os.Stat(path)
 	if err != nil {
 		return false, err
@@ -168,11 +184,13 @@ func (pm *PatternMatcher) Matches(path string) (bool, error) {
 			suffix := strings.TrimLeft(parts[1], string(os.PathSeparator))
 			if path == root || strings.HasPrefix(path, root+string(os.PathSeparator)) {
 				if match, _ := filepath.Match(suffix, filepath.Base(path)); match {
+					pm.count++
 					return true, nil
 				}
 			}
 		} else {
 			if match, _ := filepath.Match(inc, path); match {
+				pm.count++
 				return true, nil
 			}
 		}

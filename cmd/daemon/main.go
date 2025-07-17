@@ -177,14 +177,14 @@ func getPatterns(config *settings.Config, extra string) ([]string, error) {
 	config.Path = filepath.Join(config.Path, "***")
 	config.Path = strings.ReplaceAll(config.Path, `\`, "/")
 
-	patterns, err := lib.ExpandPatterns(true, false, config.Path, prints, stickers, emojis)
+	patterns, err := lib.ExpandPatterns(true, false, 64, config.Path, prints, stickers, emojis)
 	if err != nil {
 		if retries < 3 {
 			retries++
 
 			log.Printf(`Could not expand folder "%s", trying again: %v`, config.Path, err)
 			err := strings.Split(err.Error(), ": ")
-			sprintf := fmt.Sprintf("\nInvalid folder %s: - %s", config.Path, err[len(err)-1])
+			sprintf := fmt.Sprintf("\nInvalid folder %s: %s", config.Path, err[len(err)-1])
 
 			config.Path = "Unset"
 			return getPatterns(config, sprintf)

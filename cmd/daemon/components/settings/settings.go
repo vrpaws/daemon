@@ -524,7 +524,7 @@ func (m *Model) save() tea.Cmd {
 				}
 			case path:
 				if m.config.Path != value {
-					patterns, err := lib.ExpandPatterns(true, false, value)
+					patterns, err := lib.ExpandPatterns(true, false, 64, value)
 					if err != nil {
 						m.inputs[i].TextStyle = errorStyle.Italic(true)
 						cmds = append(cmds, message.Cmd(fmt.Errorf("could not set path: %w", err)))
