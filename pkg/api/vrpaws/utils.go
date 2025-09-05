@@ -6,8 +6,8 @@ import (
 	"image"
 	"io"
 
-	"github.com/HugoSmits86/nativewebp"
 	"github.com/disintegration/imaging"
+	"github.com/gen2brain/webp"
 
 	"vrc-moments/pkg/vrc"
 )
@@ -36,11 +36,14 @@ var imageSizes = map[string]imageSize{
 func resize(img image.Image, width, height int) (io.Reader, error) {
 	img = imaging.Fit(img, width, height, imaging.Lanczos)
 	var buf bytes.Buffer
-	err := nativewebp.Encode(&buf, img, nil)
-	if err != nil {
-		return nil, fmt.Errorf("could not encode image: %w", err)
+	opts := webp.Options{
+		Quality:  95,
+		Method:   6,
+		Lossless: false,
 	}
-
+	if err := webp.Encode(&buf, img, opts); err != nil {
+		return nil, fmt.Errorf("could not encode webp: %w", err)
+	}
 	return &buf, nil
 }
 
