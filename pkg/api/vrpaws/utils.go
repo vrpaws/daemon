@@ -11,9 +11,11 @@ import (
 	"vrc-moments/pkg/vrc"
 )
 
-type imageSize struct {
+type imageParam struct {
 	width  int
 	height int
+
+	quality int
 }
 
 const (
@@ -24,19 +26,19 @@ const (
 	large     = "large"
 )
 
-var imageSizes = map[string]imageSize{
-	original:  {width: 3840, height: 3840},
-	thumbnail: {width: 250, height: 250},
-	small:     {width: 600, height: 600},
-	medium:    {width: 1200, height: 1200},
-	large:     {width: 2000, height: 2000},
+var imageParams = map[string]imageParam{
+	original:  {width: 3840, height: 3840, quality: 95},
+	thumbnail: {width: 250, height: 250, quality: 80},
+	small:     {width: 600, height: 600, quality: 80},
+	medium:    {width: 1200, height: 1200, quality: 80},
+	large:     {width: 2000, height: 2000, quality: 95},
 }
 
-func resize(img image.Image, width, height int) (*bytes.Buffer, error) {
-	img = imaging.Fit(img, width, height, imaging.Lanczos)
+func resize(img image.Image, param imageParam) (*bytes.Buffer, error) {
+	img = imaging.Fit(img, param.width, param.height, imaging.Lanczos)
 	var buf bytes.Buffer
 	opts := webp.Options{
-		Quality:  95,
+		Quality:  param.quality,
 		Method:   6,
 		Lossless: false,
 	}

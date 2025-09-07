@@ -95,23 +95,23 @@ func (s *Server) Upload(ctx context.Context, payload *UploadPayload) (*UploadRes
 
 	bounds := image.Bounds()
 
-	numSteps := len(imageSizes)
+	numSteps := len(imageParams)
 	const stepStart = 0.1
 	const stepEnd = 0.9
 	stepIncrement := (stepEnd - stepStart) / float64(numSteps)
 	var stepIndex int
 	var totalSize uint64
 
-	for mode, size := range imageSizes {
+	for mode, params := range imageParams {
 		var reader interface {
 			io.Reader
 			Len() int
 		}
 
 		// check if we exceed size.width or size.height
-		if bounds.Dx() > size.width || bounds.Dy() > size.height {
+		if bounds.Dx() > params.width || bounds.Dy() > params.height {
 			payload.SetProgress(logger.Messagef("Resizing %s (%s)...", mode, humanize.Bytes(uint64(main.Len()))), stepStart+(float64(stepIndex))*stepIncrement)
-			reader, err = resize(image, size.width, size.height)
+			reader, err = resize(image, params)
 			if err != nil {
 				return nil, fmt.Errorf("could not resize %s image: %w", mode, err)
 			}
