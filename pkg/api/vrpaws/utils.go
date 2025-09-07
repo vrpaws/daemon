@@ -28,9 +28,9 @@ const (
 
 var imageParams = map[string]imageParam{
 	original:  {width: 3840, height: 3840, quality: 95},
-	thumbnail: {width: 250, height: 250, quality: 80},
-	small:     {width: 600, height: 600, quality: 80},
-	medium:    {width: 1200, height: 1200, quality: 80},
+	thumbnail: {width: 250, height: 250, quality: 95},
+	small:     {width: 600, height: 600, quality: 95},
+	medium:    {width: 1200, height: 1200, quality: 95},
 	large:     {width: 2000, height: 2000, quality: 95},
 }
 
