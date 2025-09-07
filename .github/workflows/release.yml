@@ -5,12 +5,15 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write  # needed for gh-release with GITHUB_TOKEN
+
 jobs:
   build:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [windows-latest, ubuntu-latest, macos-latest]
+        os: [ windows-latest, ubuntu-latest, macos-latest ]
         include:
           - os: windows-latest
             artifact_name: vrpaws-client-${{ github.ref_name }}.exe
@@ -22,26 +25,44 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # --- Bun ---
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v1
+        uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
 
-      - name: Build Bun Components
+      - name: Check Bun installation
         run: |
-          cd cmd/daemon/components/login/login
-          bun run build
-          cd ../success
-          bun run build
+          echo "bun version: $(bun --version)"
+          which bun || true
+        shell: bash
 
+      - name: Build Bun components (install + build)
+        working-directory: cmd/daemon/components/login/next
+        run: |
+          bun install --frozen-lockfile || bun install
+          bun run build
+        shell: bash
+
+      # --- Go ---
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.24.4'
+          go-version-file: go.mod
 
-      - name: Build Daemon
+      # Copy .syso only on Windows, then build with OS-specific output name
+      - name: Build Daemon (Windows)
+        if: runner.os == 'Windows'
         run: |
-          go build -o ${{ matrix.artifact_name }} ./cmd/daemon
+          cp cmd/daemon/src/rsrc_windows_amd64.syso cmd/daemon || copy cmd\daemon\src\rsrc_windows_amd64.syso cmd\daemon
+          go build -o "${{ matrix.artifact_name }}" ./cmd/daemon
+        shell: bash
+
+      - name: Build Daemon (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: |
+          go build -o "${{ matrix.artifact_name }}" ./cmd/daemon
+        shell: bash
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
@@ -53,8 +74,15 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: Download all artifacts
+      - name: Download all artifacts (merge)
         uses: actions/download-artifact@v4
+        with:
+          pattern: vrpaws-client-*
+          merge-multiple: true
+          path: .
+
+      - name: List downloaded files (debug)
+        run: ls -la
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
@@ -64,4 +92,4 @@ jobs:
             vrpaws-client-linux-*
             vrpaws-client-macos-*
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
