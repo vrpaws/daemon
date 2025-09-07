@@ -13,9 +13,7 @@ import (
 	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/fsnotify/fsnotify"
-	"github.com/getlantern/systray"
 	_ "github.com/joho/godotenv/autoload"
 	"github.com/sqweek/dialog"
 
@@ -23,6 +21,7 @@ import (
 	"vrc-moments/cmd/daemon/components/logger"
 	"vrc-moments/cmd/daemon/components/message"
 	"vrc-moments/cmd/daemon/components/settings"
+	"vrc-moments/cmd/daemon/components/systray"
 	lib "vrc-moments/pkg"
 	"vrc-moments/pkg/gradient"
 	"vrc-moments/pkg/vrc"
@@ -52,7 +51,7 @@ func main() {
 	program := model.Run()
 	logFile, done := lib.LogOutput(&model)
 	defer done()
-	go systray.Run(onReady(program), func() {})
+	go systray.Run(program)
 
 	program.Send(logFile)
 	program.Send(program)
@@ -201,59 +200,4 @@ func getPatterns(config *settings.Config, extra string) ([]string, error) {
 	}
 
 	return patterns, config.Save()
-}
-
-//go:embed src/icon.ico
-var trayIcon []byte
-
-func onReady(program *tea.Program) func() {
-	return func() {
-		systray.SetIcon(trayIcon)
-		systray.SetTitle("VRPaws Client")
-		systray.SetTooltip("VRPaws Client")
-
-		showItem := systray.AddMenuItem("Show Window", "Restore the TUI window")
-		showItem.Disable()
-		loginItem := systray.AddMenuItem("Login", "Login to VRPaws client")
-		systray.AddSeparator()
-		pauseItem := systray.AddMenuItem("Pause", "Pause the app")
-		browseItem := systray.AddMenuItem("Set VRChat Folder", "Set the VRChat Pictures Folder")
-
-		systray.AddSeparator()
-		exitItem := systray.AddMenuItem("Exit", "Exit the app")
-		program.Send(message.SetPause(func(paused bool) {
-			if paused {
-				pauseItem.Checked()
-			} else {
-				pauseItem.Uncheck()
-			}
-		}))
-		program.Send(message.SetUsername(func(username string) {
-			loginItem.SetTitle(fmt.Sprintf("Logged in (%s)", username))
-			loginItem.Check()
-		}))
-
-		go func() {
-			for {
-				select {
-				case <-browseItem.ClickedCh:
-					program.Send(message.BrowseRequest{})
-				case <-loginItem.ClickedCh:
-					program.Send(message.LoginRequest{})
-				case <-showItem.ClickedCh:
-					continue
-				case <-pauseItem.ClickedCh:
-					if pauseItem.Checked() {
-						pauseItem.Uncheck()
-					} else {
-						pauseItem.Check()
-					}
-					program.Send(message.Pause(pauseItem.Checked()))
-				case <-exitItem.ClickedCh:
-					program.Send(tea.Quit())
-					return
-				}
-			}
-		}()
-	}
 }

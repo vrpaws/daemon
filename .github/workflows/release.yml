@@ -6,90 +6,57 @@ on:
       - 'v*'
 
 permissions:
-  contents: write  # needed for gh-release with GITHUB_TOKEN
+  contents: write
 
 jobs:
   build:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ windows-latest, ubuntu-latest, macos-latest ]
-        include:
-          - os: windows-latest
-            artifact_name: vrpaws-client-${{ github.ref_name }}.exe
-          - os: ubuntu-latest
-            artifact_name: vrpaws-client-linux-${{ github.ref_name }}
-          - os: macos-latest
-            artifact_name: vrpaws-client-macos-${{ github.ref_name }}
+    runs-on: windows-latest
 
     steps:
       - uses: actions/checkout@v4
 
-      # --- Bun ---
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
 
-      - name: Check Bun installation
-        run: |
-          echo "bun version: $(bun --version)"
-          which bun || true
-        shell: bash
-
-      - name: Build Bun components (install + build)
+      - name: Install & Build Bun components
         working-directory: cmd/daemon/components/login/next
         run: |
           bun install --frozen-lockfile || bun install
           bun run build
-        shell: bash
 
-      # --- Go ---
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
 
-      # Copy .syso only on Windows, then build with OS-specific output name
-      - name: Build Daemon (Windows)
-        if: runner.os == 'Windows'
+      - name: Build Daemon
         run: |
           cp cmd/daemon/src/rsrc_windows_amd64.syso cmd/daemon || copy cmd\daemon\src\rsrc_windows_amd64.syso cmd\daemon
-          go build -o "${{ matrix.artifact_name }}" ./cmd/daemon
-        shell: bash
-
-      - name: Build Daemon (Linux/macOS)
-        if: runner.os != 'Windows'
-        run: |
-          go build -o "${{ matrix.artifact_name }}" ./cmd/daemon
+          go build -o vrpaws-client-${{ github.ref_name }}.exe ./cmd/daemon
         shell: bash
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact_name }}
-          path: ${{ matrix.artifact_name }}
+          name: vrpaws-client-${{ github.ref_name }}.exe
+          path: vrpaws-client-${{ github.ref_name }}.exe
 
   release:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: Download all artifacts (merge)
+      - name: Download artifact
         uses: actions/download-artifact@v4
         with:
           pattern: vrpaws-client-*
           merge-multiple: true
           path: .
 
-      - name: List downloaded files (debug)
-        run: ls -la
-
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          files: |
-            vrpaws-client-*.exe
-            vrpaws-client-linux-*
-            vrpaws-client-macos-*
+          files: vrpaws-client-*.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
