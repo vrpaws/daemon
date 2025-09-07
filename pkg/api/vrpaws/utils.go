@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"image"
-	"io"
 
 	"github.com/disintegration/imaging"
 	"github.com/gen2brain/webp"
@@ -33,7 +32,7 @@ var imageSizes = map[string]imageSize{
 	large:     {width: 2000, height: 2000},
 }
 
-func resize(img image.Image, width, height int) (io.Reader, error) {
+func resize(img image.Image, width, height int) (*bytes.Buffer, error) {
 	img = imaging.Fit(img, width, height, imaging.Lanczos)
 	var buf bytes.Buffer
 	opts := webp.Options{

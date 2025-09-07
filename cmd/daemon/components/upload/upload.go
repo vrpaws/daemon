@@ -13,6 +13,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/dustin/go-humanize"
 	"github.com/fsnotify/fsnotify"
 	zone "github.com/lrstanley/bubblezone"
 	"github.com/pkg/browser"
@@ -327,7 +328,7 @@ func (m *Uploader) upload(path string) (*vrpaws.UploadResponse, error) {
 		m.program.Send(logger.Concat{
 			Save: true,
 			Items: []logger.Renderable{
-				logger.NewMessageTime("Successfully uploaded "),
+				logger.NewMessageTimef("Successfully uploaded %s ", humanize.Bytes(response.TotalSize)),
 				logger.NewGradientString(payload.File.Filename, gradient.PastelColors...),
 				logger.Message("!"),
 			},

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/disintegration/imaging"
+	"github.com/dustin/go-humanize"
 
 	"vrc-moments/cmd/daemon/components/logger"
 	lib "vrc-moments/pkg"
@@ -52,6 +53,9 @@ type UploadPayload struct {
 
 type UploadResponse struct {
 	Image string `json:"image"`
+
+	TotalSize uint64
+	Sizes     map[string]uint64
 }
 
 func (s *Server) Upload(ctx context.Context, payload *UploadPayload) (*UploadResponse, error) {
@@ -87,6 +91,7 @@ func (s *Server) Upload(ctx context.Context, payload *UploadPayload) (*UploadRes
 
 		Metadata: metadata(payload.File.Metadata),
 	}
+	sizes := make(map[string]uint64)
 
 	bounds := image.Bounds()
 
@@ -95,13 +100,17 @@ func (s *Server) Upload(ctx context.Context, payload *UploadPayload) (*UploadRes
 	const stepEnd = 0.9
 	stepIncrement := (stepEnd - stepStart) / float64(numSteps)
 	var stepIndex int
+	var totalSize uint64
 
 	for mode, size := range imageSizes {
-		var reader io.Reader
+		var reader interface {
+			io.Reader
+			Len() int
+		}
 
 		// check if we exceed size.width or size.height
 		if bounds.Dx() > size.width || bounds.Dy() > size.height {
-			payload.SetProgress(logger.Messagef("Resizing %s...", mode), stepStart+(float64(stepIndex))*stepIncrement)
+			payload.SetProgress(logger.Messagef("Resizing %s (%s)...", mode, humanize.Bytes(uint64(main.Len()))), stepStart+(float64(stepIndex))*stepIncrement)
 			reader, err = resize(image, size.width, size.height)
 			if err != nil {
 				return nil, fmt.Errorf("could not resize %s image: %w", mode, err)
@@ -110,12 +119,16 @@ func (s *Server) Upload(ctx context.Context, payload *UploadPayload) (*UploadRes
 			reader = bytes.NewReader(main.Bytes())
 		}
 
-		payload.SetProgress(logger.Messagef("Uploading %s...", mode), stepStart+(float64(stepIndex)+0.5)*stepIncrement)
+		fileSize := uint64(reader.Len())
+		sizes[mode] = fileSize
+		totalSize += fileSize
+		fileSizeString := humanize.Bytes(fileSize)
+		payload.SetProgress(logger.Messagef("Uploading %s (%s)...", mode, fileSizeString), stepStart+(float64(stepIndex)+0.5)*stepIncrement)
 		id, err := s.upload(payload.Token, reader)
 		if err != nil {
 			return nil, fmt.Errorf("could not upload %s image: %w", mode, err)
 		}
-		payload.SetProgress(logger.Messagef("Uploading %s...", mode), stepStart+(float64(stepIndex)+1)*stepIncrement)
+		payload.SetProgress(logger.Messagef("Uploaded %s (%s)...", mode, fileSizeString), stepStart+(float64(stepIndex)+1)*stepIncrement)
 
 		switch mode {
 		case original:
@@ -138,7 +151,7 @@ func (s *Server) Upload(ctx context.Context, payload *UploadPayload) (*UploadRes
 		return nil, fmt.Errorf("could not encode upload payload: %w", err)
 	}
 
-	payload.SetProgress(logger.Message("Uploading..."), 0.95)
+	payload.SetProgress(logger.Message("Uploading signature..."), 0.95)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint.String(), reader)
 	if err != nil {
 		return nil, fmt.Errorf("could not create upload request: %w", err)
@@ -163,7 +176,9 @@ func (s *Server) Upload(ctx context.Context, payload *UploadPayload) (*UploadRes
 		return nil, fmt.Errorf("could not decode upload response: %w", err)
 	}
 
-	payload.SetProgress(logger.Message("Done!"), 1.0)
+	response.TotalSize = totalSize
+	response.Sizes = sizes
+
 	return response, nil
 }
 

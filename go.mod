@@ -9,6 +9,7 @@ require (
 	github.com/charmbracelet/bubbletea v1.3.5
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/disintegration/imaging v1.6.2
+	github.com/dustin/go-humanize v1.0.1
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/gen2brain/webp v0.5.5
 	github.com/getlantern/systray v1.2.2
